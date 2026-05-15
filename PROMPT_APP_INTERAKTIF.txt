@@ -1,0 +1,26 @@
+Buatkan aplikasi web interaktif React + Tailwind CSS untuk Sistem Manajemen Data Inspektorat Kota Depok.
+Semua menu, card dashboard, grafik, tabel, tombol detail, edit, hapus, approve, download, notifikasi, agenda, dan dokumen harus clickable.
+Gunakan data dummy dari file data/dummy-data.json dan file dummy dari folder dummy_files.
+
+Fitur wajib:
+- Login dummy dengan username admin/admin123, inspektur/inspektur123, auditor/auditor123.
+- Dashboard dengan card statistik clickable.
+- Sidebar minimal: Dashboard, Data Organisasi, Pengawasan, Dokumen & Laporan, Pengaturan.
+- Setiap submenu membuka halaman tabel sesuai data.
+- Search, filter status, filter tahun, pagination dummy.
+- Modal Detail, Tambah, Edit, Konfirmasi Hapus.
+- Tombol Download mengambil nama file dummy dari data dokumen/surat/laporan.
+- Role based access dummy: Admin semua menu, Inspektur approval/report, Auditor temuan/tindak lanjut/dokumen.
+- Grafik Recharts untuk progress wilayah, kegiatan bulanan, dan status laporan.
+- Toast notification setelah simpan/hapus/approve/download.
+- Halaman Arsip Dokumen menampilkan file dummy dan preview metadata.
+- Gunakan desain modern government dashboard biru tua, putih, hijau toska, badge status berwarna.
+
+Data utama:
+- Pegawai, unit kerja, program kerja, jadwal pemeriksaan, surat tugas, temuan, tindak lanjut, laporan pemeriksaan, surat masuk, surat keluar, dokumen, user, notifikasi, log aktivitas.
+
+File dummy:
+- Simulasikan upload/download/preview file dari folder dummy_files.
+- Klik file PDF membuka modal preview data dokumen.
+- Klik file CSV membuka tabel rekap.
+- Klik file TXT membuka isi ringkas dokumen.

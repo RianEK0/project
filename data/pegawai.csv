@@ -1,0 +1,14 @@
+id,nama,jabatan,unit,status,email,role
+PG-001,Ermino Galakso,Inspektur,Inspektorat Kota Depok,Aktif,ermino.galakso@depok.go.id,Inspektur
+PG-002,Rina Kartika,Sekretaris,Sekretariat,Aktif,rina.kartika@depok.go.id,Sekretaris
+PG-003,Budi Santoso,Kasubbag Umum dan Kepegawaian,Sekretariat,Aktif,budi.santoso@depok.go.id,Admin
+PG-004,Siti Rahma,"Kasubbag Perencanaan, Evaluasi dan Pelaporan",Sekretariat,Aktif,siti.rahma@depok.go.id,Operator
+PG-005,Andi Pratama,Kasubbag Keuangan dan Aset,Sekretariat,Aktif,andi.pratama@depok.go.id,Operator
+PG-006,Dedi Kurniawan,Inspektur Pembantu Wilayah I,Wilayah I,Aktif,dedi.kurniawan@depok.go.id,Irban Wilayah
+PG-007,Maya Lestari,Inspektur Pembantu Wilayah II,Wilayah II,Aktif,maya.lestari@depok.go.id,Irban Wilayah
+PG-008,Fajar Nugroho,Inspektur Pembantu Wilayah III,Wilayah III,Aktif,fajar.nugroho@depok.go.id,Irban Wilayah
+PG-009,Lilis Handayani,Inspektur Pembantu Wilayah IV,Wilayah IV,Aktif,lilis.handayani@depok.go.id,Irban Wilayah
+PG-010,Agus Maulana,Inspektur Pembantu Wilayah V,Wilayah V,Aktif,agus.maulana@depok.go.id,Irban Wilayah
+PG-011,Nanda Saputra,Auditor Ahli Muda,Jabatan Fungsional,Aktif,nanda.saputra@depok.go.id,Auditor
+PG-012,Dewi Anggraini,Auditor Ahli Pertama,Jabatan Fungsional,Aktif,dewi.anggraini@depok.go.id,Auditor
+PG-013,Rudi Hartono,PPUPD,Jabatan Fungsional,Aktif,rudi.hartono@depok.go.id,Auditor

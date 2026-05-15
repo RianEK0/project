@@ -1,0 +1,6 @@
+id,judul,opd,risiko,status,rekomendasi
+TM-001,Keterlambatan penyampaian dokumen pendukung,Dinas Pendidikan,Sedang,Belum Ditindaklanjuti,OPD menyampaikan dokumen pendukung paling lambat 14 hari kerja.
+TM-002,Ketidaksesuaian data aset dengan dokumen inventaris,Disperkim,Tinggi,Dalam Proses,Melakukan rekonsiliasi aset dan memperbarui kartu inventaris barang.
+TM-003,Bukti pertanggungjawaban belum lengkap,Kecamatan Sukmajaya,Sedang,Dalam Proses,Melengkapi bukti pertanggungjawaban dan berita acara kegiatan.
+TM-004,Kelebihan pembayaran kegiatan operasional,RSUD Kota Depok,Tinggi,Perlu Review,Menyetorkan pengembalian ke kas daerah dan menyampaikan bukti setor.
+TM-005,SOP pelayanan belum diperbarui,Dinas Kesehatan,Rendah,Selesai,Memperbarui SOP pelayanan sesuai regulasi terbaru.
