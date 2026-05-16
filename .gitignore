@@ -1,6 +1,11 @@
 # macOS
 .DS_Store
 
+# Node / React
+node_modules/
+dist/
+build/
+
 # .NET build output
 bin/
 obj/
@@ -25,8 +30,3 @@ appsettings.Production.json
 *.log
 *.tmp
 *.temp
-
-# Frontend dependencies/build output, if added later
-node_modules/
-dist/
-build/
