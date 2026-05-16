@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# .NET build output
+bin/
+obj/
+
+# IDE/editor files
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+appsettings.*.local.json
+appsettings.Production.json
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# Frontend dependencies/build output, if added later
+node_modules/
+dist/
+build/

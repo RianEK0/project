@@ -1,0 +1,4 @@
+CustomerName,AccountNumber,TransactionType,Amount,TransactionDate,Description
+Andi Wijaya,100110012001,Transfer,2500000,2026-05-01,Transfer vendor bulanan
+Siti Rahma,100110012002,Deposit,5000000,2026-05-02,Setoran dana operasional
+Budi Santoso,100110012003,Payment,750000,2026-05-03,Pembayaran invoice layanan
