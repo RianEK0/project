@@ -1,32 +1,6 @@
-# macOS
-.DS_Store
-
-# Node / React
 node_modules/
 dist/
-build/
-
-# .NET build output
-bin/
-obj/
-
-# IDE/editor files
-.vs/
-.vscode/
-*.user
-*.suo
-*.userosscache
-*.sln.docstates
-
-# Local configuration and secrets
+.DS_Store
+*.log
 .env
 .env.*
-!.env.example
-appsettings.Local.json
-appsettings.*.local.json
-appsettings.Production.json
-
-# Logs and temporary files
-*.log
-*.tmp
-*.temp
