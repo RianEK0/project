@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  komdigi-hris:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      PORT: 5001
+      DATABASE_URL: file:./dev.db
+      JWT_SECRET: change-this-jwt-secret
+      CORS_ORIGIN: http://localhost:5001
+      JSON_LIMIT: 10mb
+    volumes:
+      - ./backend/uploads:/app/backend/uploads
+      - ./backend/prisma:/app/backend/prisma
+    restart: unless-stopped

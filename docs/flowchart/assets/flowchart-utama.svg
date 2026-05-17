@@ -1,0 +1,115 @@
+<svg width="1200" height="1800" viewBox="0 0 1200 1800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="1800" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FBFF"/>
+      <stop offset="1" stop-color="#EEF6F4"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="260" y2="100" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F8FAFC"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#0F172A" flood-opacity="0.08"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12V0Z" fill="#2563EB"/>
+    </marker>
+    <style>
+      .title { font: 700 34px 'Arial', sans-serif; fill: #0F172A; }
+      .subtitle { font: 500 18px 'Arial', sans-serif; fill: #475569; }
+      .label { font: 700 18px 'Arial', sans-serif; fill: #0F172A; }
+      .text { font: 500 16px 'Arial', sans-serif; fill: #334155; }
+      .small { font: 700 15px 'Arial', sans-serif; fill: #1E3A8A; }
+      .yes { font: 700 14px 'Arial', sans-serif; fill: #15803D; }
+      .no { font: 700 14px 'Arial', sans-serif; fill: #B91C1C; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="1800" fill="url(#bg)"/>
+  <text x="600" y="70" text-anchor="middle" class="title">Flowchart Utama Aplikasi Komdigi HRIS</text>
+  <text x="600" y="105" text-anchor="middle" class="subtitle">Alur login, pembagian akses, absensi wajah, dashboard, dan notifikasi</text>
+
+  <rect x="430" y="150" rx="26" ry="26" width="340" height="86" fill="#DBEAFE" stroke="#2563EB" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="190" text-anchor="middle" class="label">Mulai</text>
+  <text x="600" y="216" text-anchor="middle" class="text">User membuka aplikasi HRIS</text>
+
+  <rect x="430" y="290" rx="24" ry="24" width="340" height="96" fill="url(#card)" stroke="#94A3B8" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="600" y="332" text-anchor="middle" class="label">Login</text>
+  <text x="600" y="358" text-anchor="middle" class="text">Masukkan email dan password</text>
+
+  <polygon points="600,440 760,530 600,620 440,530" fill="#FEF3C7" stroke="#D97706" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="520" text-anchor="middle" class="label">Autentikasi</text>
+  <text x="600" y="548" text-anchor="middle" class="text">Apakah login valid?</text>
+
+  <rect x="840" y="484" rx="22" ry="22" width="260" height="92" fill="#FEE2E2" stroke="#DC2626" stroke-width="2" filter="url(#shadow)"/>
+  <text x="970" y="522" text-anchor="middle" class="label">Login Gagal</text>
+  <text x="970" y="548" text-anchor="middle" class="text">Tampilkan pesan error</text>
+
+  <rect x="430" y="690" rx="24" ry="24" width="340" height="102" fill="url(#card)" stroke="#94A3B8" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="600" y="730" text-anchor="middle" class="label">Baca Hak Akses</text>
+  <text x="600" y="758" text-anchor="middle" class="text">Ambil role, direktorat, dan divisi user</text>
+
+  <polygon points="600,850 760,940 600,1030 440,940" fill="#DCFCE7" stroke="#16A34A" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="928" text-anchor="middle" class="label">Role User</text>
+  <text x="600" y="956" text-anchor="middle" class="text">Super Admin / Admin / Pegawai</text>
+
+  <rect x="70" y="1110" rx="22" ry="22" width="300" height="140" fill="#DBEAFE" stroke="#2563EB" stroke-width="2" filter="url(#shadow)"/>
+  <text x="220" y="1150" text-anchor="middle" class="label">Super Admin</text>
+  <text x="220" y="1180" text-anchor="middle" class="text">Dashboard global</text>
+  <text x="220" y="1206" text-anchor="middle" class="text">Kelola semua pegawai</text>
+  <text x="220" y="1232" text-anchor="middle" class="text">Lihat seluruh absensi</text>
+
+  <rect x="450" y="1110" rx="22" ry="22" width="300" height="140" fill="#DCFCE7" stroke="#16A34A" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="1150" text-anchor="middle" class="label">Admin Direktorat</text>
+  <text x="600" y="1180" text-anchor="middle" class="text">Dashboard direktorat</text>
+  <text x="600" y="1206" text-anchor="middle" class="text">Kelola pegawai direktorat sendiri</text>
+  <text x="600" y="1232" text-anchor="middle" class="text">Lihat absensi unitnya</text>
+
+  <rect x="830" y="1110" rx="22" ry="22" width="300" height="140" fill="#F3E8FF" stroke="#7C3AED" stroke-width="2" filter="url(#shadow)"/>
+  <text x="980" y="1150" text-anchor="middle" class="label">Pegawai</text>
+  <text x="980" y="1180" text-anchor="middle" class="text">Dashboard pribadi</text>
+  <text x="980" y="1206" text-anchor="middle" class="text">Lihat profil sendiri</text>
+  <text x="980" y="1232" text-anchor="middle" class="text">Absensi dan riwayat pribadi</text>
+
+  <rect x="430" y="1330" rx="24" ry="24" width="340" height="106" fill="url(#card)" stroke="#94A3B8" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="600" y="1370" text-anchor="middle" class="label">Modul Absensi Wajah</text>
+  <text x="600" y="1398" text-anchor="middle" class="text">Aktifkan kamera dan ambil capture</text>
+
+  <polygon points="600,1490 760,1580 600,1670 440,1580" fill="#FCE7F3" stroke="#DB2777" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="1568" text-anchor="middle" class="label">Validasi Wajah</text>
+  <text x="600" y="1596" text-anchor="middle" class="text">Apakah wajah cocok dengan data?</text>
+
+  <rect x="110" y="1710" rx="22" ry="22" width="360" height="66" fill="#DCFCE7" stroke="#16A34A" stroke-width="2" filter="url(#shadow)"/>
+  <text x="290" y="1752" text-anchor="middle" class="label">Simpan absensi valid dan update dashboard</text>
+
+  <rect x="730" y="1710" rx="22" ry="22" width="360" height="66" fill="#FEE2E2" stroke="#DC2626" stroke-width="2" filter="url(#shadow)"/>
+  <text x="910" y="1752" text-anchor="middle" class="label">Simpan status tidak valid dan kirim notifikasi</text>
+
+  <line x1="600" y1="236" x2="600" y2="290" stroke="#2563EB" stroke-width="4" marker-end="url(#arrow)"/>
+  <line x1="600" y1="386" x2="600" y2="440" stroke="#2563EB" stroke-width="4" marker-end="url(#arrow)"/>
+  <line x1="760" y1="530" x2="840" y2="530" stroke="#2563EB" stroke-width="4" marker-end="url(#arrow)"/>
+  <text x="792" y="518" class="no">Tidak</text>
+  <path d="M970 576V640H600V690" stroke="#2563EB" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <text x="804" y="632" class="small">Coba login lagi</text>
+  <line x1="600" y1="620" x2="600" y2="690" stroke="#2563EB" stroke-width="4" marker-end="url(#arrow)"/>
+  <text x="616" y="654" class="yes">Ya</text>
+  <line x1="600" y1="792" x2="600" y2="850" stroke="#2563EB" stroke-width="4" marker-end="url(#arrow)"/>
+
+  <path d="M520 990L220 1110" stroke="#2563EB" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <path d="M600 1030V1110" stroke="#2563EB" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <path d="M680 990L980 1110" stroke="#2563EB" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+
+  <text x="330" y="1062" class="small">Super Admin</text>
+  <text x="622" y="1072" class="small">Admin Direktorat</text>
+  <text x="820" y="1062" class="small">Pegawai</text>
+
+  <path d="M220 1250V1290H600V1330" stroke="#2563EB" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <path d="M600 1250V1330" stroke="#2563EB" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <path d="M980 1250V1290H600V1330" stroke="#2563EB" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+
+  <line x1="600" y1="1436" x2="600" y2="1490" stroke="#2563EB" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M520 1630L290 1710" stroke="#2563EB" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <path d="M680 1630L910 1710" stroke="#2563EB" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <text x="390" y="1672" class="yes">Cocok</text>
+  <text x="748" y="1672" class="no">Tidak cocok</text>
+</svg>

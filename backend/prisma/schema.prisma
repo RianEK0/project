@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Role {
+  id    Int    @id @default(autoincrement())
+  name  String @unique // Super Admin, Admin Direktorat, Pegawai
+  users User[]
+}
+
+model Direktorat {
+  id       Int      @id @default(autoincrement())
+  name     String   @unique
+  color    String   // Hex code for theme
+  divisis  Divisi[]
+  users    User[]
+  projects Project[]
+}
+
+model Divisi {
+  id           Int        @id @default(autoincrement())
+  name         String
+  direktoratId Int
+  direktorat   Direktorat @relation(fields: [direktoratId], references: [id])
+  users        User[]
+  projects     Project[]
+}
+
+model User {
+  id             Int          @id @default(autoincrement())
+  name           String
+  email          String       @unique
+  password       String
+  position       String
+  photo          String?
+  faceDescriptor String?
+  faceEnrolledAt DateTime?
+  roleId         Int
+  role           Role         @relation(fields: [roleId], references: [id])
+  direktoratId   Int
+  direktorat     Direktorat   @relation(fields: [direktoratId], references: [id])
+  divisiId       Int
+  divisi         Divisi       @relation(fields: [divisiId], references: [id])
+  attendances    Attendance[]
+  projects       ProjectMember[]
+  notifications  Notification[]
+  activityLogs   ActivityLog[]
+  lat            Float?
+  lng            Float?
+  lastActive     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Attendance {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  timeIn     DateTime @default(now())
+  timeOut    DateTime?
+  photoIn    String?
+  photoOut   String?
+  lat        Float?
+  lng        Float?
+  status     String   // Hadir, Terlambat, dll
+  isValid    Boolean  @default(true)
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+}
+
+model Project {
+  id           Int        @id @default(autoincrement())
+  name         String
+  description  String?
+  startDate    DateTime
+  endDate      DateTime
+  status       String     // Planning, Ongoing, Done
+  progress     Int        @default(0) // 0-100
+  direktoratId Int
+  direktorat   Direktorat @relation(fields: [direktoratId], references: [id])
+  divisiId     Int
+  divisi       Divisi     @relation(fields: [divisiId], references: [id])
+  members      ProjectMember[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model ProjectMember {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  title     String
+  message   String
+  type      String   @default("info")
+  isRead    Boolean  @default(false)
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleScope String?
+  meta      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ActivityLog {
+  id          Int      @id @default(autoincrement())
+  action      String
+  description String
+  entityType  String
+  entityId    Int?
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+}
