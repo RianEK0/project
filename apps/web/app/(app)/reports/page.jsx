@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Download, FileSpreadsheet, FileText, Search } from "lucide-react";
 import { apiFetch, buildQuery, downloadFromApi } from "../../../lib/api";
-import { ARCHIVE_STATUSES, DOCUMENT_TYPES, FILE_TYPES } from "../../../lib/constants";
+import { ARCHIVE_CATEGORIES, ARCHIVE_STATUSES, DOCUMENT_TYPES, FILE_TYPES } from "../../../lib/constants";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { FileTypeIcon } from "../../../components/FileTypeIcon";
 
 export default function ReportsPage() {
-  const [filters, setFilters] = useState({ search: "", unitId: "", status: "", documentType: "", fileType: "", year: "" });
+  const [filters, setFilters] = useState({ search: "", unitId: "", status: "", documentType: "", archiveCategory: "", fileType: "", year: "" });
   const [units, setUnits] = useState([]);
   const [report, setReport] = useState(null);
   const [error, setError] = useState("");
@@ -129,6 +129,14 @@ export default function ReportsPage() {
               </option>
             ))}
           </Select>
+          <Select label="Kategori" value={filters.archiveCategory} onChange={(value) => updateFilter("archiveCategory", value)}>
+            <option value="">Semua kategori</option>
+            {ARCHIVE_CATEGORIES.map((category) => (
+              <option key={category.value} value={category.value}>
+                {category.value}
+              </option>
+            ))}
+          </Select>
           <Select label="File" value={filters.fileType} onChange={(value) => updateFilter("fileType", value)}>
             <option value="">Semua file</option>
             {FILE_TYPES.map((type) => (
@@ -200,6 +208,8 @@ export default function ReportsPage() {
                 <th className="px-4 py-3">Dokumen</th>
                 <th className="px-4 py-3">Divisi</th>
                 <th className="px-4 py-3">Jenis</th>
+                <th className="px-4 py-3">Klasifikasi</th>
+                <th className="px-4 py-3">Kategori</th>
                 <th className="px-4 py-3">File</th>
                 <th className="px-4 py-3">Status</th>
               </tr>
@@ -213,6 +223,10 @@ export default function ReportsPage() {
                   </td>
                   <td className="px-4 py-3 text-slate-600">{archive.unit_name}</td>
                   <td className="px-4 py-3 text-slate-600">{archive.document_type}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-600">{archive.classification}</td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={archive.archive_category} />
+                  </td>
                   <td className="px-4 py-3">
                     <FileTypeIcon type={archive.file_type} />
                   </td>

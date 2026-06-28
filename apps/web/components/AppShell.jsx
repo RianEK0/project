@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Archive,
   BarChart3,
@@ -15,9 +15,13 @@ import {
   Search,
   ShieldCheck,
   Users,
-  X
+  X,
+  FileDown,
+  Trash,
+  Bell
 } from "lucide-react";
 import { useAuth } from "./AuthProvider";
+import { apiFetch } from "../lib/api";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -25,6 +29,8 @@ const navItems = [
   { href: "/dispositions", label: "Disposisi", icon: ClipboardList },
   { href: "/organization", label: "Organisasi", icon: Network },
   { href: "/reports", label: "Laporan", icon: BarChart3 },
+  { href: "/penyusutan", label: "Penyusutan", icon: FileDown },
+  { href: "/pemusnahan", label: "Pemusnahan", icon: Trash },
   { href: "/audit-logs", label: "Audit Log", icon: ShieldCheck, roles: ["Admin", "Inspektur", "Sekretaris"] },
   { href: "/users", label: "User", icon: Users, roles: ["Admin"] }
 ];
@@ -35,12 +41,51 @@ export function AppShell({ children }) {
   const { user, loading, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
+  
+  // Notification States
+  const [notifications, setNotifications] = useState([]);
+  const [notiOpen, setNotiOpen] = useState(false);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const result = await apiFetch("/notifications");
+      setNotifications(result.data || []);
+    } catch (err) {
+      console.error("Gagal memuat notifikasi", err);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.replace("/login");
+    if (user) {
+      fetchNotifications();
+      const interval = setInterval(fetchNotifications, 15000);
+      return () => clearInterval(interval);
     }
-  }, [loading, user, router]);
+  }, [user, fetchNotifications]);
+
+  const unreadCount = useMemo(() => {
+    return notifications.filter((n) => !n.is_read).length;
+  }, [notifications]);
+
+  async function markAllAsRead() {
+    try {
+      await apiFetch("/notifications/read-all", { method: "PUT" });
+      setNotifications((current) => current.map((n) => ({ ...n, is_read: true })));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function markAsRead(id) {
+    try {
+      await apiFetch(`/notifications/${id}/read`, { method: "PUT" });
+      setNotifications((current) =>
+        current.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  }
 
   const visibleNav = useMemo(() => {
     if (!user) return [];
@@ -157,6 +202,82 @@ export function AppShell({ children }) {
                 placeholder="Cari nama arsip atau nomor dokumen"
               />
             </form>
+
+            {/* Notification Bell */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setNotiOpen(!notiOpen)}
+                className="focus-ring relative rounded-md border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"
+                aria-label="Notifikasi"
+              >
+                <Bell size={18} />
+                {unreadCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {notiOpen && (
+                <>
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    className="fixed inset-0 z-40 cursor-default bg-transparent outline-none"
+                    onClick={() => setNotiOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-80 rounded-md border border-slate-200 bg-white py-2 shadow-lg z-50">
+                    <div className="flex items-center justify-between border-b border-slate-100 px-4 pb-2">
+                      <span className="text-xs font-bold text-slate-700">Notifikasi</span>
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={markAllAsRead}
+                          className="text-[11px] font-semibold text-brand-600 hover:underline"
+                        >
+                          Tandai semua dibaca
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">
+                      {notifications.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-xs text-slate-400">Tidak ada notifikasi.</div>
+                      ) : (
+                        notifications.map((n) => (
+                          <div
+                            key={n.id}
+                            onClick={() => {
+                              if (!n.is_read) markAsRead(n.id);
+                              setNotiOpen(false);
+                              if (n.entity_id) {
+                                router.push(`/archives?search=${encodeURIComponent(n.entity_id)}`);
+                              }
+                            }}
+                            className={`cursor-pointer px-4 py-2.5 text-left hover:bg-slate-50 transition-colors ${
+                              !n.is_read ? "bg-brand-50/50" : ""
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold text-slate-800">{n.title}</span>
+                              {!n.is_read && <span className="h-1.5 w-1.5 rounded-full bg-brand-600"></span>}
+                            </div>
+                            <p className="mt-0.5 text-xs text-slate-600 leading-normal">{n.message}</p>
+                            <span className="mt-1 block text-[10px] text-slate-400">
+                              {new Date(n.created_at).toLocaleDateString("id-ID", {
+                                hour: "2-digit",
+                                minute: "2-digit"
+                              })}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
             <div className="hidden items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-600 sm:flex">
               <FileText size={17} />
               <span>{user.role}</span>

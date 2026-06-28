@@ -29,8 +29,8 @@ function escapeXml(value) {
 }
 
 function excelXml(rows) {
-  const header = ["Nomor Dokumen", "Judul", "Unit", "Jenis", "Tipe File", "Tahun", "Status", "Klasifikasi"];
-  const keys = ["document_number", "title", "unit_name", "document_type", "file_type", "year", "status", "classification"];
+  const header = ["Nomor Dokumen", "Judul", "Unit", "Jenis", "Klasifikasi", "Kategori Arsip", "Tipe File", "Tahun", "Status"];
+  const keys = ["document_number", "title", "unit_name", "document_type", "classification", "archive_category", "file_type", "year", "status"];
   const bodyRows = [
     header.map((cell) => `<Cell><Data ss:Type="String">${escapeXml(cell)}</Data></Cell>`).join(""),
     ...rows.map((row) =>
@@ -69,7 +69,11 @@ router.get(
          COUNT(*) FILTER (WHERE status = 'Menunggu Review')::int AS waiting_review,
          COUNT(*) FILTER (WHERE status = 'Terverifikasi')::int AS verified,
          COUNT(*) FILTER (WHERE status = 'Ditolak')::int AS rejected,
-         COUNT(*) FILTER (WHERE status = 'Diarsipkan')::int AS archived
+         COUNT(*) FILTER (WHERE status = 'Diarsipkan')::int AS archived,
+         COUNT(*) FILTER (WHERE archive_category = 'Arsip Aktif')::int AS active_archives,
+         COUNT(*) FILTER (WHERE archive_category = 'Arsip Inaktif')::int AS inactive_archives,
+         COUNT(*) FILTER (WHERE archive_category = 'Arsip Statis')::int AS static_archives,
+         COUNT(*) FILTER (WHERE archive_category = 'Arsip Musnah')::int AS destroyed_archives
        FROM archives a
        ${filters.whereSql}`,
       filters.values
@@ -139,7 +143,7 @@ router.get(
       rows.forEach((row, index) => {
         if (doc.y > 740) doc.addPage();
         doc.fillColor("#111").fontSize(10).text(`${index + 1}. ${row.document_number} - ${row.title}`);
-        doc.fillColor("#555").fontSize(8).text(`${row.unit_name} | ${row.document_type} | ${row.file_type} | ${row.year} | ${row.status}`);
+        doc.fillColor("#555").fontSize(8).text(`${row.unit_name} | ${row.document_type} | ${row.classification} | ${row.archive_category} | ${row.file_type} | ${row.year} | ${row.status}`);
         doc.moveDown(0.45);
       });
 

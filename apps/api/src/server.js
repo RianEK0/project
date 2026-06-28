@@ -12,6 +12,8 @@ import organizationRoutes from "./routes/organization.js";
 import reportRoutes from "./routes/reports.js";
 import auditLogRoutes from "./routes/auditLogs.js";
 import userRoutes from "./routes/users.js";
+import disposalRoutes from "./routes/disposals.js";
+import notificationRoutes from "./routes/notifications.js";
 import { errorHandler, notFound } from "./middleware/error.js";
 
 const app = express();
@@ -38,11 +40,13 @@ app.get("/api/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/archives", archiveRoutes);
+app.use("/api/disposals", disposalRoutes);
 app.use("/api/dispositions", dispositionRoutes);
 app.use("/api/organization", organizationRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/audit-logs", auditLogRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

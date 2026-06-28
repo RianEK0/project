@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Download, Eye, FilePlus2, MessageSquarePlus, Pencil, Search, ShieldCheck, Trash2 } from "lucide-react";
+import Select from "react-select";
+import dataJsonClassification from "../../../data/classification.json";
 import { apiFetch, buildQuery, downloadFromApi } from "../../../lib/api";
 import {
+  ARCHIVE_CATEGORIES,
   ARCHIVE_STATUSES,
   DOCUMENT_TYPES,
   FILE_TYPES,
@@ -22,15 +25,32 @@ import { FileTypeIcon } from "../../../components/FileTypeIcon";
 import { Modal } from "../../../components/Modal";
 import { StatusBadge } from "../../../components/StatusBadge";
 
+const classificationOptions = dataJsonClassification.map((item) => ({
+  value: item.Id,
+  label: `${item.Id} - ${item.Keterangan}`
+}));
+
+const getClassificationLabel = (code) => {
+  const match = dataJsonClassification.find((item) => item.Id === code);
+  return match ? `${match.Id} - ${match.Keterangan}` : code;
+};
+
 const defaultForm = {
   title: "",
   documentNumber: "",
+  letterNumber: "",
+  archiveDate: new Date().toISOString().split("T")[0],
+  securityLevel: "Biasa",
+  activeRetention: 0,
+  inactiveRetention: 0,
   unitId: "",
   documentType: DOCUMENT_TYPES[0],
   fileType: "PDF",
   year: new Date().getFullYear(),
   status: "Draft",
-  classification: "Internal",
+  classification: classificationOptions[0]?.value || "",
+  archiveCategory: "Arsip Aktif",
+  lifecycleStatus: "Aktif",
   description: "",
   file: null
 };
@@ -46,6 +66,8 @@ export default function ArchivesPage() {
     unitId: "",
     status: "",
     documentType: "",
+    classification: "",
+    archiveCategory: "",
     fileType: "",
     year: "",
     page: 1
@@ -121,12 +143,19 @@ export default function ArchivesPage() {
     setForm({
       title: archive.title || "",
       documentNumber: archive.document_number || "",
+      letterNumber: archive.letter_number || "",
+      archiveDate: archive.archive_date ? archive.archive_date.split("T")[0] : new Date().toISOString().split("T")[0],
+      securityLevel: archive.security_level || "Biasa",
+      activeRetention: archive.active_retention || 0,
+      inactiveRetention: archive.inactive_retention || 0,
       unitId: archive.unit_id || "",
       documentType: archive.document_type || DOCUMENT_TYPES[0],
       fileType: archive.file_type || "PDF",
       year: archive.year || new Date().getFullYear(),
       status: archive.status || "Draft",
-      classification: archive.classification || "Internal",
+      classification: archive.classification || classificationOptions[0]?.value || "",
+      archiveCategory: archive.archive_category || "Arsip Aktif",
+      lifecycleStatus: archive.lifecycle_status || "Aktif",
       description: archive.description || "",
       file: null
     });
@@ -280,7 +309,7 @@ export default function ArchivesPage() {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
 
       <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
           <label className="md:col-span-2 xl:col-span-2">
             <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Search</span>
             <span className="relative block">
@@ -317,6 +346,14 @@ export default function ArchivesPage() {
               </option>
             ))}
           </FilterSelect>
+          <FilterSelect label="Kategori" value={filters.archiveCategory} onChange={(value) => updateFilter("archiveCategory", value)}>
+            <option value="">Semua kategori</option>
+            {ARCHIVE_CATEGORIES.map((category) => (
+              <option key={category.value} value={category.value}>
+                {category.value}
+              </option>
+            ))}
+          </FilterSelect>
           <FilterSelect label="File" value={filters.fileType} onChange={(value) => updateFilter("fileType", value)}>
             <option value="">Semua file</option>
             {FILE_TYPES.map((type) => (
@@ -345,6 +382,8 @@ export default function ArchivesPage() {
                 <th className="px-4 py-3">Dokumen</th>
                 <th className="px-4 py-3">Divisi</th>
                 <th className="px-4 py-3">Jenis</th>
+                <th className="px-4 py-3">Klasifikasi</th>
+                <th className="px-4 py-3">Kategori</th>
                 <th className="px-4 py-3">File</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Aksi</th>
@@ -366,6 +405,10 @@ export default function ArchivesPage() {
                     </td>
                     <td className="px-4 py-3 text-slate-600">{archive.unit_name}</td>
                     <td className="px-4 py-3 text-slate-600">{archive.document_type}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-600" title={getClassificationLabel(archive.classification)}>{archive.classification}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={archive.archive_category} />
+                    </td>
                     <td className="px-4 py-3">
                       <FileTypeIcon type={archive.file_type} />
                     </td>
@@ -455,11 +498,54 @@ export default function ArchivesPage() {
               <dl className="grid gap-3 rounded-md border border-slate-200 p-4 text-sm sm:grid-cols-2">
                 <Info label="Divisi" value={detail.unit_name} />
                 <Info label="Jenis" value={detail.document_type} />
+                <Info label="Klasifikasi" value={getClassificationLabel(detail.classification)} />
+                <Info label="Kategori Arsip" value={detail.archive_category} />
+                <Info label="Tingkat Keamanan" value={detail.security_level || "Biasa"} />
+                <Info label="Nomor Surat" value={detail.letter_number || "-"} />
+                <Info label="Tanggal Arsip" value={detail.archive_date ? new Date(detail.archive_date).toLocaleDateString("id-ID") : "-"} />
+                <Info label="Nomor BA Penyusutan" value={detail.disposal_ba_number || "-"} />
+                <Info label="Nomor BA Pemusnahan" value={detail.destruction_ba_number || "-"} />
+                <Info label="Masa Retensi" value={`${detail.active_retention || 0} Thn Aktif / ${detail.inactive_retention || 0} Thn Inaktif`} />
+                <Info label="Status Siklus Hidup" value={detail.lifecycle_status || "Aktif"} />
                 <Info label="Tahun" value={detail.year} />
-                <Info label="Klasifikasi" value={detail.classification} />
                 <Info label="Pembuat" value={detail.creator_name} />
                 <Info label="Ukuran file" value={formatBytes(detail.file_size)} />
               </dl>
+
+              {/* Berita Acara Downloads */}
+              {(detail.disposal_doc_path || detail.destruction_doc_path) && (
+                <div className="flex flex-wrap gap-2 rounded-md border border-slate-200 bg-slate-50/50 p-3 text-xs">
+                  <span className="font-bold text-slate-500 w-full mb-1">Berita Acara Pendukung:</span>
+                  {detail.disposal_doc_path && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        downloadFromApi(
+                          `/disposals/${detail.id}/download-disposal-ba`,
+                          `BA-Penyusutan-${detail.disposal_ba_number || detail.id}.pdf`
+                        )
+                      }
+                      className="focus-ring inline-flex h-8 items-center justify-center rounded-md border border-slate-200 bg-white px-3 font-semibold text-brand-700 hover:bg-slate-50"
+                    >
+                      <Download size={13} className="mr-1" /> Unduh BA Penyusutan
+                    </button>
+                  )}
+                  {detail.destruction_doc_path && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        downloadFromApi(
+                          `/disposals/${detail.id}/download-ba`,
+                          `BA-Pemusnahan-${detail.destruction_ba_number || detail.id}.pdf`
+                        )
+                      }
+                      className="focus-ring inline-flex h-8 items-center justify-center rounded-md border border-slate-200 bg-white px-3 font-semibold text-red-700 hover:bg-slate-50"
+                    >
+                      <Download size={13} className="mr-1" /> Unduh BA Pemusnahan
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
                   <div>
@@ -495,6 +581,37 @@ export default function ArchivesPage() {
                 </div>
               </div>
               <p className="rounded-md bg-slate-50 p-4 text-sm leading-6 text-slate-600">{detail.description || "Tidak ada deskripsi."}</p>
+
+              {/* Timeline Riwayat Siklus Hidup */}
+              <div className="rounded-md border border-slate-200 bg-white">
+                <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-ink">
+                  Riwayat Siklus Hidup Arsip (Standar ANRI)
+                </div>
+                <div className="p-4">
+                  {detail.lifecycleLogs && detail.lifecycleLogs.length > 0 ? (
+                    <div className="relative border-l-2 border-slate-100 pl-5 space-y-4">
+                      {detail.lifecycleLogs.map((log) => (
+                        <div key={log.id} className="relative">
+                          <div className="absolute -left-[25px] top-1.5 h-2.5 w-2.5 rounded-full border border-white bg-brand-600 ring-4 ring-white" />
+                          <div className="text-xs font-semibold text-slate-400">
+                            {new Date(log.action_date).toLocaleString("id-ID", {
+                              dateStyle: "medium",
+                              timeStyle: "short"
+                            })}
+                          </div>
+                          <div className="mt-1 text-sm font-bold text-ink">{log.stage}</div>
+                          {log.notes && <p className="mt-0.5 text-xs text-slate-600">{log.notes}</p>}
+                          <div className="mt-0.5 text-[10px] text-slate-400">
+                            Petugas: {log.officer_name || "Sistem"} ({log.officer_role || "-"})
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-xs text-slate-400">Belum ada riwayat siklus hidup.</div>
+                  )}
+                </div>
+              </div>
 
               <div className="rounded-md border border-slate-200">
                 <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-ink">Riwayat disposisi</div>
@@ -635,6 +752,20 @@ function ArchiveForm({ form, setForm, units, submitting, onSubmit, user }) {
         onChange={(value) => setForm((current) => ({ ...current, documentNumber: value }))}
         required
       />
+      <TextInput
+        label="Nomor Surat"
+        value={form.letterNumber}
+        onChange={(value) => setForm((current) => ({ ...current, letterNumber: value }))}
+      />
+      <label className="block">
+        <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Tanggal Arsip</span>
+        <input
+          type="date"
+          value={form.archiveDate}
+          onChange={(event) => setForm((current) => ({ ...current, archiveDate: event.target.value }))}
+          className="focus-ring h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
+        />
+      </label>
       <FilterSelect label="Divisi" value={form.unitId} onChange={(value) => setForm((current) => ({ ...current, unitId: value }))}>
         <option value="">Pilih divisi</option>
         {units.map((unit) => (
@@ -650,6 +781,98 @@ function ArchiveForm({ form, setForm, units, submitting, onSubmit, user }) {
           </option>
         ))}
       </FilterSelect>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-semibold text-slate-500 uppercase">
+          Klasifikasi
+        </label>
+        <Select
+          options={classificationOptions}
+          value={classificationOptions.find((option) => option.value === form.classification) || null}
+          onChange={(pilihan) => setForm((current) => ({ 
+            ...current, 
+            classification: pilihan ? pilihan.value : "" 
+          }))}
+          isSearchable={true}
+          placeholder="Cari kode klasifikasi..."
+          noOptionsMessage={() => "Kode tidak ditemukan"}
+          styles={{
+            control: (base, state) => ({
+              ...base,
+              borderColor: state.isFocused ? "#0d9488" : "#e2e8f0",
+              boxShadow: state.isFocused ? "0 0 0 1px #0d9488" : "none",
+              '&:hover': {
+                borderColor: "#0d9488",
+              },
+              borderRadius: "0.375rem",
+              minHeight: "2.5rem",
+            }),
+          }}
+        />
+      </div>
+      <FilterSelect label="Tingkat Keamanan" value={form.securityLevel} onChange={(value) => setForm((current) => ({ ...current, securityLevel: value }))}>
+        {["Biasa", "Terbatas", "Rahasia", "Sangat Rahasia"].map((level) => (
+          <option key={level} value={level}>
+            {level}
+          </option>
+        ))}
+      </FilterSelect>
+      <TextInput
+        label="Masa Retensi Aktif (Tahun)"
+        value={form.activeRetention}
+        onChange={(value) => setForm((current) => ({ ...current, activeRetention: value }))}
+      />
+      <TextInput
+        label="Masa Retensi Inaktif (Tahun)"
+        value={form.inactiveRetention}
+        onChange={(value) => setForm((current) => ({ ...current, inactiveRetention: value }))}
+      />
+      <FilterSelect
+        label="Status Siklus Hidup (ANRI)"
+        value={form.lifecycleStatus}
+        onChange={(value) => {
+          let cat = "Arsip Aktif";
+          if (value === "Inaktif") cat = "Arsip Inaktif";
+          else if (value === "Statis") cat = "Arsip Statis";
+          else if (["Usulan Pemusnahan", "Verifikasi Pemusnahan", "Disetujui Pemusnahan", "Musnah"].includes(value)) cat = "Arsip Musnah";
+
+          setForm((current) => ({
+            ...current,
+            lifecycleStatus: value,
+            archiveCategory: cat
+          }));
+        }}
+      >
+        {["Aktif", "Usulan Penyusutan", "Inaktif", "Statis", "Usulan Pemusnahan", "Verifikasi Pemusnahan", "Disetujui Pemusnahan", "Musnah"].map((status) => (
+          <option key={status} value={status}>
+            {status}
+          </option>
+        ))}
+      </FilterSelect>
+      <FilterSelect
+        label="Kategori Arsip"
+        value={form.archiveCategory}
+        onChange={(value) => {
+          let lStatus = "Aktif";
+          if (value === "Arsip Inaktif") lStatus = "Inaktif";
+          else if (value === "Arsip Statis") lStatus = "Statis";
+          else if (value === "Arsip Musnah") lStatus = "Musnah";
+
+          setForm((current) => ({
+            ...current,
+            archiveCategory: value,
+            lifecycleStatus: lStatus
+          }));
+        }}
+      >
+        {ARCHIVE_CATEGORIES.map((category) => (
+          <option key={category.value} value={category.value}>
+            {category.value}
+          </option>
+        ))}
+      </FilterSelect>
+      <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600 md:col-span-2">
+        {ARCHIVE_CATEGORIES.find((category) => category.value === form.archiveCategory)?.description}
+      </div>
       <FilterSelect label="Status" value={form.status} onChange={(value) => setForm((current) => ({ ...current, status: value }))}>
         {ARCHIVE_STATUSES.map((status) => (
           <option key={status} value={status}>
@@ -665,7 +888,6 @@ function ArchiveForm({ form, setForm, units, submitting, onSubmit, user }) {
         ))}
       </FilterSelect>
       <TextInput label="Tahun" value={form.year} onChange={(value) => setForm((current) => ({ ...current, year: value }))} required />
-      <TextInput label="Klasifikasi" value={form.classification} onChange={(value) => setForm((current) => ({ ...current, classification: value }))} />
       <label className="md:col-span-2">
         <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Deskripsi</span>
         <textarea

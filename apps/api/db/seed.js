@@ -36,6 +36,7 @@ const users = [
 ];
 
 const statuses = ["Draft", "Menunggu Review", "Terverifikasi", "Ditolak", "Diarsipkan"];
+const archiveCategories = ["Arsip Aktif", "Arsip Inaktif", "Arsip Statis", "Arsip Musnah"];
 const documentTypes = [
   "Laporan Hasil Pemeriksaan",
   "Surat Masuk",
@@ -121,13 +122,36 @@ async function main() {
       const creatorId = (i % 10) + 1;
       const verifiedBy = ["Terverifikasi", "Diarsipkan"].includes(status) ? ((i + 1) % 3) + 1 : null;
 
-      await client.query(
+      const activeRetention = 1 + (i % 3);
+      const inactiveRetention = 2 + (i % 4);
+      const isArchived = status === "Diarsipkan";
+      const archiveCategory = isArchived 
+        ? (i % 3 === 0 ? "Arsip Inaktif" : i % 4 === 0 ? "Arsip Statis" : "Arsip Aktif")
+        : "Arsip Aktif";
+      
+      const lifecycleStatus = isArchived
+        ? (archiveCategory === "Arsip Inaktif" ? "Inaktif" : archiveCategory === "Arsip Statis" ? "Statis" : "Aktif")
+        : "Aktif";
+
+      let archiveDate = daysAgo(40 - i);
+      let createdAt = daysAgo(30 - i);
+      if (lifecycleStatus === "Aktif" && status === "Diarsipkan") {
+        archiveDate = daysAgo(activeRetention * 365 + 30);
+        createdAt = daysAgo(activeRetention * 365 + 35);
+      } else if (lifecycleStatus === "Inaktif") {
+        archiveDate = daysAgo((activeRetention + inactiveRetention) * 365 + 30);
+        createdAt = daysAgo((activeRetention + inactiveRetention) * 365 + 35);
+      }
+
+      const result = await client.query(
         `INSERT INTO archives (
-          title, document_number, unit_id, document_type, file_type, year, status, classification,
+          title, document_number, unit_id, document_type, file_type, year, status, classification, archive_category,
           description, file_path, file_original_name, file_size, created_by, verified_by, verified_at,
+          letter_number, archive_date, security_level, active_retention, inactive_retention, lifecycle_status,
           created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)`,
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $23)
+        RETURNING id`,
         [
           archiveTitles[i],
           `SIPADI/${year}/${archiveNo}`,
@@ -136,7 +160,8 @@ async function main() {
           fileType,
           year,
           status,
-          i % 4 === 0 ? "Rahasia" : "Internal",
+          `000.1.${(i % 9) + 1}`,
+          archiveCategory,
           `Data dummy untuk ${archiveTitles[i].toLowerCase()}.`,
           null,
           `dummy-${archiveNo}.${fileType.toLowerCase()}`,
@@ -144,9 +169,37 @@ async function main() {
           creatorId,
           verifiedBy,
           verifiedBy ? daysAgo(12 - (i % 8)) : null,
-          daysAgo(30 - i)
+          `SRT/${year}/${archiveNo}`,
+          archiveDate,
+          i % 4 === 0 ? "Terbatas" : i % 7 === 0 ? "Rahasia" : "Biasa",
+          activeRetention,
+          inactiveRetention,
+          lifecycleStatus,
+          createdAt
         ]
       );
+
+      const archiveId = result.rows[0].id;
+
+      await client.query(
+        `INSERT INTO archive_lifecycle_logs (archive_id, stage, action_date, officer_id, notes, is_approved)
+         VALUES ($1, 'Penciptaan', $2, $3, 'Arsip pertama kali diciptakan.', TRUE)`,
+        [archiveId, daysAgo(30 - i), creatorId]
+      );
+
+      if (lifecycleStatus === "Inaktif") {
+        await client.query(
+          `INSERT INTO archive_lifecycle_logs (archive_id, stage, action_date, officer_id, notes, is_approved)
+           VALUES ($1, 'Menjadi Arsip Inaktif', $2, $3, 'Retensi aktif habis, dipindahkan ke inaktif.', TRUE)`,
+          [archiveId, daysAgo(15 - (i % 10)), 1]
+        );
+      } else if (lifecycleStatus === "Statis") {
+        await client.query(
+          `INSERT INTO archive_lifecycle_logs (archive_id, stage, action_date, officer_id, notes, is_approved)
+           VALUES ($1, 'Menjadi Arsip Statis', $2, $3, 'Retensi inaktif habis, ditetapkan sebagai arsip statis/permanen.', TRUE)`,
+          [archiveId, daysAgo(15 - (i % 10)), 1]
+        );
+      }
     }
 
     const comments = [

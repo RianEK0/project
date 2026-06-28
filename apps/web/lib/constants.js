@@ -5,6 +5,13 @@ export const UNIT_EDIT_ROLES = ["Sub Bag", "Irban Wilayah"];
 
 export const ARCHIVE_STATUSES = ["Draft", "Menunggu Review", "Terverifikasi", "Ditolak", "Diarsipkan"];
 
+export const ARCHIVE_CATEGORIES = [
+  { value: "Arsip Aktif", description: "Masih sering digunakan." },
+  { value: "Arsip Inaktif", description: "Sudah jarang digunakan tetapi masih disimpan." },
+  { value: "Arsip Statis", description: "Memiliki nilai sejarah, disimpan permanen." },
+  { value: "Arsip Musnah", description: "Masa retensinya habis dan dapat dimusnahkan sesuai prosedur." }
+];
+
 export const DISPOSITION_STATUSES = ["Dikirim", "Dibaca", "Diproses", "Selesai", "Dibatalkan"];
 
 export const DOCUMENT_TYPES = [

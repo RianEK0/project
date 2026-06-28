@@ -19,7 +19,19 @@ router.get(
         COUNT(*) FILTER (WHERE status = 'Terverifikasi')::int AS verified,
         COUNT(*) FILTER (WHERE status = 'Draft')::int AS draft,
         COUNT(*) FILTER (WHERE status = 'Ditolak')::int AS rejected,
-        COUNT(*) FILTER (WHERE status = 'Diarsipkan')::int AS archived
+        COUNT(*) FILTER (WHERE status = 'Diarsipkan')::int AS archived,
+        COUNT(*) FILTER (WHERE archive_category = 'Arsip Aktif')::int AS active_archives,
+        COUNT(*) FILTER (WHERE archive_category = 'Arsip Inaktif')::int AS inactive_archives,
+        COUNT(*) FILTER (WHERE archive_category = 'Arsip Statis')::int AS static_archives,
+        COUNT(*) FILTER (WHERE archive_category = 'Arsip Musnah')::int AS destroyed_archives,
+        
+        -- New Stats:
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days')::int AS new_archives,
+        COUNT(*) FILTER (WHERE lifecycle_status = 'Aktif' AND status = 'Diarsipkan' AND CURRENT_DATE >= (archive_date + (active_retention * INTERVAL '1 year')))::int AS eligible_disposal,
+        COUNT(*) FILTER (WHERE lifecycle_status = 'Usulan Penyusutan')::int AS in_disposal,
+        COUNT(*) FILTER (WHERE lifecycle_status = 'Inaktif' AND status = 'Diarsipkan' AND CURRENT_DATE >= (archive_date + ((active_retention + inactive_retention) * INTERVAL '1 year')))::int AS eligible_destruction,
+        COUNT(*) FILTER (WHERE lifecycle_status IN ('Usulan Pemusnahan', 'Verifikasi Pemusnahan', 'Disetujui Pemusnahan'))::int AS in_destruction,
+        COUNT(*) FILTER (WHERE lifecycle_status = 'Musnah' AND destruction_date >= DATE_TRUNC('month', CURRENT_DATE))::int AS destroyed_this_month
        FROM archives a
        ${filters.whereSql}`,
       filters.values
@@ -50,6 +62,50 @@ router.get(
        LIMIT 8`
     );
 
+    // Chart Queries
+    // 1. Penciptaan per Bulan (current year)
+    const creationFilter = buildArchiveFilters({ filters: req.query, user: req.user, alias: 'a' });
+    const creationResult = await query(
+      `SELECT DATE_PART('month', a.created_at)::int AS month, COUNT(*)::int AS count
+       FROM archives a
+       ${creationFilter.whereSql ? creationFilter.whereSql + " AND" : "WHERE"} a.created_at >= DATE_TRUNC('year', CURRENT_DATE)
+       GROUP BY DATE_PART('month', a.created_at)
+       ORDER BY month`,
+      creationFilter.values
+    );
+
+    // 2. Penyusutan per Tahun
+    const disposalResult = await query(
+      `SELECT DATE_PART('year', l.action_date)::int AS year, COUNT(DISTINCT l.archive_id)::int AS count
+       FROM archive_lifecycle_logs l
+       JOIN archives a ON l.archive_id = a.id
+       ${filters.whereSql ? filters.whereSql + " AND" : "WHERE"} l.stage IN ('Menjadi Arsip Inaktif', 'Menjadi Arsip Statis', 'Diusulkan Musnah')
+       GROUP BY DATE_PART('year', l.action_date)
+       ORDER BY year ASC`,
+      filters.values
+    );
+
+    // 3. Pemusnahan per Tahun
+    const destructionResult = await query(
+      `SELECT DATE_PART('year', a.destruction_date)::int AS year, COUNT(*)::int AS count
+       FROM archives a
+       ${filters.whereSql ? filters.whereSql + " AND" : "WHERE"} a.lifecycle_status = 'Musnah' AND a.destruction_date IS NOT NULL
+       GROUP BY DATE_PART('year', a.destruction_date)
+       ORDER BY year ASC`,
+      filters.values
+    );
+
+    // 4. Klasifikasi
+    const classificationResult = await query(
+      `SELECT a.classification, COUNT(*)::int AS count
+       FROM archives a
+       ${filters.whereSql}
+       GROUP BY a.classification
+       ORDER BY count DESC
+       LIMIT 10`,
+      filters.values
+    );
+
     res.json({
       stats: {
         totalArchives: totals.rows[0].total,
@@ -58,11 +114,29 @@ router.get(
         verified: totals.rows[0].verified,
         draft: totals.rows[0].draft,
         rejected: totals.rows[0].rejected,
-        archived: totals.rows[0].archived
+        archived: totals.rows[0].archived,
+        activeArchives: totals.rows[0].active_archives,
+        inactiveArchives: totals.rows[0].inactive_archives,
+        staticArchives: totals.rows[0].static_archives,
+        destroyedArchives: totals.rows[0].destroyed_archives,
+        
+        // New stats
+        newArchives: totals.rows[0].new_archives,
+        eligibleDisposal: totals.rows[0].eligible_disposal,
+        inDisposal: totals.rows[0].in_disposal,
+        eligibleDestruction: totals.rows[0].eligible_destruction,
+        inDestruction: totals.rows[0].in_destruction,
+        destroyedThisMonth: totals.rows[0].destroyed_this_month
       },
       unitCounts: unitCounts.rows,
       recentArchives: recentArchives.rows,
-      activities: activities.rows
+      activities: activities.rows,
+      charts: {
+        creationByMonth: creationResult.rows,
+        disposalByYear: disposalResult.rows,
+        destructionByYear: destructionResult.rows,
+        byClassification: classificationResult.rows
+      }
     });
   })
 );

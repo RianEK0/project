@@ -8,7 +8,7 @@ import { archiveUpload, resolveUploadPath, uploadedFileToDb } from "../middlewar
 import { validateBody } from "../middleware/validate.js";
 import { asyncHandler, cleanText, createHttpError, pagination, parseOptionalInt } from "../utils/http.js";
 import { logActivity } from "../services/audit.js";
-import { ARCHIVE_STATUSES, FILE_TYPES, archiveSelectSql, buildArchiveFilters } from "../services/archiveQueries.js";
+import { ARCHIVE_CATEGORIES, ARCHIVE_STATUSES, FILE_TYPES, archiveSelectSql, buildArchiveFilters } from "../services/archiveQueries.js";
 import {
   canChooseArchiveUnit,
   canDeleteArchive,
@@ -42,17 +42,26 @@ function archiveInput(req, existing = {}) {
   const documentType = cleanText(req.body.documentType || req.body.document_type) ?? existing.document_type;
   const status = cleanText(req.body.status) ?? existing.status ?? "Draft";
   const classification = cleanText(req.body.classification) ?? existing.classification ?? "Internal";
+  const archiveCategory = cleanText(req.body.archiveCategory || req.body.archive_category) ?? existing.archive_category ?? "Arsip Aktif";
   const description = cleanText(req.body.description) ?? existing.description ?? "";
   const year = parseOptionalInt(req.body.year) ?? existing.year ?? new Date().getFullYear();
   const requestedUnitId = parseOptionalInt(req.body.unitId || req.body.unit_id);
   const unitId = canChooseArchiveUnit(req.user) ? requestedUnitId ?? existing.unit_id : req.user.unitId;
   const fileType = (uploaded.fileType || cleanText(req.body.fileType || req.body.file_type) || existing.file_type || "PDF").toUpperCase();
 
+  const letterNumber = cleanText(req.body.letterNumber || req.body.letter_number) ?? existing.letter_number;
+  const archiveDate = cleanText(req.body.archiveDate || req.body.archive_date) ?? existing.archive_date;
+  const securityLevel = cleanText(req.body.securityLevel || req.body.security_level) ?? existing.security_level ?? "Biasa";
+  const activeRetention = parseOptionalInt(req.body.activeRetention || req.body.active_retention) ?? existing.active_retention ?? 0;
+  const inactiveRetention = parseOptionalInt(req.body.inactiveRetention || req.body.inactive_retention) ?? existing.inactive_retention ?? 0;
+  const lifecycleStatus = cleanText(req.body.lifecycleStatus || req.body.lifecycle_status) ?? existing.lifecycle_status ?? "Aktif";
+
   if (!title || !documentNumber || !documentType || !unitId) {
     throw createHttpError(422, "Judul, nomor dokumen, jenis dokumen, dan unit wajib diisi");
   }
 
   ensureValidChoice(status, ARCHIVE_STATUSES, "Status dokumen");
+  ensureValidChoice(archiveCategory, ARCHIVE_CATEGORIES, "Kategori arsip");
   ensureValidChoice(fileType, FILE_TYPES, "Tipe file");
 
   return {
@@ -61,10 +70,17 @@ function archiveInput(req, existing = {}) {
     documentType,
     status,
     classification,
+    archiveCategory,
     description,
     year,
     unitId,
     fileType,
+    letterNumber,
+    archiveDate,
+    securityLevel,
+    activeRetention,
+    inactiveRetention,
+    lifecycleStatus,
     ...uploaded
   };
 }
@@ -110,10 +126,11 @@ router.post(
     try {
       const result = await query(
         `INSERT INTO archives (
-          title, document_number, unit_id, document_type, file_type, year, status, classification,
-          description, file_path, file_original_name, file_size, created_by
+          title, document_number, unit_id, document_type, file_type, year, status, classification, archive_category,
+          description, file_path, file_original_name, file_size, created_by,
+          letter_number, archive_date, security_level, active_retention, inactive_retention, lifecycle_status
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         RETURNING *`,
         [
           input.title,
@@ -124,11 +141,18 @@ router.post(
           input.year,
           input.status,
           input.classification,
+          input.archiveCategory,
           input.description,
           input.filePath || null,
           input.fileOriginalName || null,
           input.fileSize || null,
-          req.user.id
+          req.user.id,
+          input.letterNumber || null,
+          input.archiveDate || new Date().toISOString().split("T")[0],
+          input.securityLevel || "Biasa",
+          input.activeRetention || 0,
+          input.inactiveRetention || 0,
+          input.lifecycleStatus || "Aktif"
         ]
       );
 
@@ -182,11 +206,21 @@ router.get(
       [req.params.id]
     );
 
+    const logsResult = await query(
+      `SELECT l.*, u.name AS officer_name, u.role AS officer_role
+       FROM archive_lifecycle_logs l
+       LEFT JOIN users u ON l.officer_id = u.id
+       WHERE l.archive_id = $1
+       ORDER BY l.created_at ASC`,
+      [req.params.id]
+    );
+
     res.json({
       data: {
         ...archiveResult.rows[0],
         comments: commentsResult.rows,
-        dispositions: dispositionsResult.rows
+        dispositions: dispositionsResult.rows,
+        lifecycleLogs: logsResult.rows
       }
     });
   })
@@ -210,12 +244,18 @@ router.put(
       const result = await query(
         `UPDATE archives
          SET title = $1, document_number = $2, unit_id = $3, document_type = $4, file_type = $5,
-             year = $6, status = $7, classification = $8, description = $9,
-             file_path = COALESCE($10, file_path),
-             file_original_name = COALESCE($11, file_original_name),
-             file_size = COALESCE($12, file_size),
+             year = $6, status = $7, classification = $8, archive_category = $9, description = $10,
+             file_path = COALESCE($11, file_path),
+             file_original_name = COALESCE($12, file_original_name),
+             file_size = COALESCE($13, file_size),
+             letter_number = $14,
+             archive_date = $15,
+             security_level = $16,
+             active_retention = $17,
+             inactive_retention = $18,
+             lifecycle_status = $19,
              updated_at = NOW()
-         WHERE id = $13
+         WHERE id = $20
          RETURNING *`,
         [
           input.title,
@@ -226,13 +266,28 @@ router.put(
           input.year,
           input.status,
           input.classification,
+          input.archiveCategory,
           input.description,
           input.filePath || null,
           input.fileOriginalName || null,
           input.fileSize || null,
+          input.letterNumber || null,
+          input.archiveDate || null,
+          input.securityLevel || "Biasa",
+          input.activeRetention || 0,
+          input.inactiveRetention || 0,
+          input.lifecycleStatus || "Aktif",
           req.params.id
         ]
       );
+
+      if (input.lifecycleStatus !== existing.lifecycle_status) {
+        await query(
+          `INSERT INTO archive_lifecycle_logs (archive_id, stage, officer_id, notes, is_approved)
+           VALUES ($1, $2, $3, $4, TRUE)`,
+          [req.params.id, input.lifecycleStatus, req.user.id, `Status siklus hidup diubah secara manual menjadi: ${input.lifecycleStatus}.`]
+        );
+      }
 
       await logActivity({
         userId: req.user.id,
