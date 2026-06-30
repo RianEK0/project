@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(60) NOT NULL UNIQUE,
   email VARCHAR(160) NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  role VARCHAR(40) NOT NULL CHECK (role IN ('Admin', 'Inspektur', 'Sekretaris', 'Sub Bag', 'Irban Wilayah', 'Staff')),
+  role VARCHAR(40) NOT NULL CHECK (role IN ('Admin', 'Inspektur', 'Sekretaris', 'Sub Bag', 'Irban Wilayah', 'Staff', 'Umpeg')),
   unit_id INTEGER REFERENCES organization_units(id) ON DELETE SET NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -139,3 +139,20 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 CREATE INDEX IF NOT EXISTS idx_archive_lifecycle_logs_archive_id ON archive_lifecycle_logs(archive_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+
+CREATE TABLE IF NOT EXISTS archive_loans (
+  id SERIAL PRIMARY KEY,
+  archive_id INTEGER NOT NULL REFERENCES archives(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reason TEXT NOT NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'Menunggu Persetujuan' CHECK (status IN ('Menunggu Persetujuan', 'Disetujui', 'Ditolak')),
+  notes TEXT,
+  approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  approved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT unique_user_archive_loan UNIQUE(user_id, archive_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_archive_loans_user_id ON archive_loans(user_id);
+CREATE INDEX IF NOT EXISTS idx_archive_loans_archive_id ON archive_loans(archive_id);

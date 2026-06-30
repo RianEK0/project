@@ -8,6 +8,7 @@ import { archiveUpload, resolveUploadPath, uploadedFileToDb } from "../middlewar
 import { validateBody } from "../middleware/validate.js";
 import { asyncHandler, cleanText, createHttpError, pagination, parseOptionalInt } from "../utils/http.js";
 import { logActivity } from "../services/audit.js";
+import { createNotification } from "../services/notificationService.js";
 import { ARCHIVE_CATEGORIES, ARCHIVE_STATUSES, FILE_TYPES, archiveSelectSql, buildArchiveFilters } from "../services/archiveQueries.js";
 import {
   canChooseArchiveUnit,
@@ -64,6 +65,16 @@ function archiveInput(req, existing = {}) {
   ensureValidChoice(archiveCategory, ARCHIVE_CATEGORIES, "Kategori arsip");
   ensureValidChoice(fileType, FILE_TYPES, "Tipe file");
 
+  // "Rahasia" hanya diizinkan untuk file TIFF
+  if (securityLevel === "Rahasia" && fileType !== "TIFF") {
+    throw createHttpError(422, "Tingkat keamanan 'Rahasia' hanya diperbolehkan untuk file bertipe TIFF.");
+  }
+  // Hapus "Sangat Rahasia" — normalkan ke "Rahasia" jika ada data lama
+  const normalizedSecurityLevel = securityLevel === "Sangat Rahasia" ? "Rahasia" : securityLevel;
+  if (!["Biasa", "Terbatas", "Rahasia"].includes(normalizedSecurityLevel)) {
+    throw createHttpError(422, "Tingkat keamanan tidak valid. Pilih: Biasa, Terbatas, atau Rahasia.");
+  }
+
   return {
     title,
     documentNumber,
@@ -77,7 +88,7 @@ function archiveInput(req, existing = {}) {
     fileType,
     letterNumber,
     archiveDate,
-    securityLevel,
+    securityLevel: normalizedSecurityLevel,
     activeRetention,
     inactiveRetention,
     lifecycleStatus,
@@ -98,11 +109,24 @@ router.get(
     );
 
     const dataResult = await query(
-      `${archiveSelectSql()}
+      `SELECT 
+        a.id, a.title, a.document_number, a.unit_id, ou.name AS unit_name,
+        a.document_type, a.file_type, a.year, a.status, a.classification, a.archive_category, a.description,
+        a.file_original_name, a.file_size, a.created_by, creator.name AS creator_name,
+        a.verified_by, verifier.name AS verifier_name, a.verified_at, a.created_at, a.updated_at,
+        a.letter_number, a.archive_date, a.security_level, a.active_retention, a.inactive_retention, a.lifecycle_status,
+        a.destruction_ba_number, a.destruction_date, a.destruction_method, a.destruction_officer, a.destruction_doc_path, a.destruction_photo_path,
+        a.disposal_ba_number, a.disposal_doc_path,
+        l.status AS loan_status, l.id AS loan_id
+       FROM archives a
+       JOIN organization_units ou ON ou.id = a.unit_id
+       LEFT JOIN users creator ON creator.id = a.created_by
+       LEFT JOIN users verifier ON verifier.id = a.verified_by
+       LEFT JOIN archive_loans l ON l.archive_id = a.id AND l.user_id = $${filters.nextIndex}
        ${filters.whereSql}
        ORDER BY a.created_at DESC
-       LIMIT $${filters.nextIndex} OFFSET $${filters.nextIndex + 1}`,
-      [...filters.values, limit, offset]
+       LIMIT $${filters.nextIndex + 1} OFFSET $${filters.nextIndex + 2}`,
+      [...filters.values, req.user.id, limit, offset]
     );
 
     res.json({
@@ -162,6 +186,15 @@ router.post(
         entity: "archive",
         entityId: result.rows[0].id,
         metadata: { title: input.title, documentNumber: input.documentNumber }
+      });
+
+      // Broadcast notifikasi ke semua user
+      await createNotification({
+        broadcast: true,
+        title: "Arsip Baru Dibuat",
+        message: `${req.user.name} membuat arsip baru: "${input.title}" (${input.documentNumber}).`,
+        type: "archive_created",
+        entityId: result.rows[0].id
       });
 
       res.status(201).json({ data: result.rows[0] });
@@ -402,6 +435,15 @@ router.get(
       entity: "archive",
       entityId: archive.id,
       metadata: { documentNumber: archive.document_number }
+    });
+
+    // Broadcast notifikasi download ke semua user
+    await createNotification({
+      broadcast: true,
+      title: "Arsip Diunduh",
+      message: `${req.user.name} mengunduh arsip "${archive.title}" (${archive.document_number}).`,
+      type: "archive_downloaded",
+      entityId: archive.id
     });
 
     if (archive.file_path) {

@@ -258,7 +258,7 @@ export default function PenyusutanPage() {
     <div className="space-y-5">
       <div>
         <p className="text-sm font-semibold uppercase text-brand-700">Manajemen Siklus Hidup</p>
-        <h1 className="mt-1 text-2xl font-bold text-ink">Penyusutan Arsip</h1>
+        <h1 className="mt-1 text-2xl font-bold text-ink">Pemeliharaan & Penyusutan Arsip</h1>
         <p className="mt-1 text-sm text-slate-500">Mereduksi arsip aktif yang telah melewati retensi ke arsip inaktif, statis, atau pemusnahan.</p>
       </div>
 

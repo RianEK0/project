@@ -1,6 +1,6 @@
-export const ROLES = ["Admin", "Inspektur", "Sekretaris", "Sub Bag", "Irban Wilayah", "Staff"];
+export const ROLES = ["Admin", "Inspektur", "Sekretaris", "Umpeg", "Sub Bag", "Irban Wilayah", "Staff"];
 
-export const GLOBAL_ROLES = ["Admin", "Inspektur", "Sekretaris"];
+export const GLOBAL_ROLES = ["Admin", "Inspektur", "Sekretaris", "Umpeg"];
 export const UNIT_EDIT_ROLES = ["Sub Bag", "Irban Wilayah"];
 
 export const ARCHIVE_STATUSES = ["Draft", "Menunggu Review", "Terverifikasi", "Ditolak", "Diarsipkan"];
@@ -23,22 +23,27 @@ export const DOCUMENT_TYPES = [
   "Bukti Dukung"
 ];
 
-export const FILE_TYPES = ["PDF", "DOC", "DOCX", "XLS", "XLSX", "JPG", "PNG"];
+export const FILE_TYPES = ["PDF", "DOC", "DOCX", "XLS", "XLSX", "JPG", "PNG", "TIFF"];
+export const SECURITY_LEVELS = ["Biasa", "Terbatas", "Rahasia"];
 
 export function canAccessGlobal(role) {
   return GLOBAL_ROLES.includes(role);
 }
 
 export function canChooseArchiveUnit(user) {
-  return user?.role === "Admin";
+  return ["Admin", "Umpeg"].includes(user?.role);
 }
 
-export function canViewArchive() {
-  return true;
+export function canViewArchive(user, archive, hasApprovedLoan = false) {
+  if (!user || !archive) return false;
+  if (GLOBAL_ROLES.includes(user.role)) return true;
+  if (Number(user.unitId) === Number(archive.unit_id)) return true;
+  if (archive.created_by === user.id) return true;
+  return hasApprovedLoan || archive.loan_status === "Disetujui";
 }
 
-export function canDownloadArchive() {
-  return true;
+export function canDownloadArchive(user, archive, hasApprovedLoan = false) {
+  return canViewArchive(user, archive, hasApprovedLoan);
 }
 
 export function canEditArchive(user, archive) {
@@ -52,9 +57,14 @@ export function canDeleteArchive(user, archive) {
 }
 
 export function canUpdateArchiveStatus(user, archive) {
-  return canEditArchive(user, archive);
+  if (!user || !archive) return false;
+  if (["Admin", "Inspektur", "Sekretaris", "Umpeg"].includes(user.role)) return true;
+  if (user.role === "Sub Bag") {
+    return Number(user.unitId) === Number(archive.unit_id);
+  }
+  return false;
 }
 
 export function canCreateDisposition(user) {
-  return user?.role === "Admin" || user?.role === "Sekretaris" || user?.role === "Inspektur";
+  return ["Admin", "Sekretaris", "Inspektur", "Umpeg"].includes(user?.role);
 }

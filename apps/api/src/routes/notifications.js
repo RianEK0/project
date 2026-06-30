@@ -3,8 +3,34 @@ import { query } from "../config/db.js";
 import { authenticate } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/http.js";
 import { checkAndGenerateNotifications } from "../services/notificationService.js";
+import { addConnection, removeConnection } from "../services/sseManager.js";
 
 const router = Router();
+
+// GET /api/notifications/stream — SSE real-time
+router.get(
+  "/stream",
+  authenticate,
+  (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no"); // disable nginx buffering
+    res.flushHeaders();
+
+    // Kirim heartbeat setiap 25 detik agar koneksi tidak di-drop
+    const heartbeat = setInterval(() => {
+      res.write(":\n\n");
+    }, 25000);
+
+    addConnection(req.user.id, res);
+
+    req.on("close", () => {
+      clearInterval(heartbeat);
+      removeConnection(req.user.id, res);
+    });
+  }
+);
 
 // GET /api/notifications
 router.get(

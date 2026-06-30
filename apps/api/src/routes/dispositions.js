@@ -7,6 +7,7 @@ import { asyncHandler, cleanText, createHttpError, pagination } from "../utils/h
 import { logActivity } from "../services/audit.js";
 import { DISPOSITION_STATUSES } from "../services/archiveQueries.js";
 import { canCreateDisposition } from "../services/permissions.js";
+import { createNotification } from "../services/notificationService.js";
 
 const router = Router();
 
@@ -173,6 +174,17 @@ router.post(
       entity: "disposition",
       entityId: result.rows[0].id,
       metadata: { archiveId: req.body.archiveId }
+    });
+
+    // Broadcast notifikasi disposisi ke semua user
+    const archiveData = await query("SELECT title, document_number FROM archives WHERE id = $1", [req.body.archiveId]);
+    const archiveInfo = archiveData.rows[0];
+    await createNotification({
+      broadcast: true,
+      title: "Disposisi Baru",
+      message: `${req.user.name} membuat disposisi untuk arsip "${archiveInfo?.title || "-"}" (${archiveInfo?.document_number || "-"}).`,
+      type: "disposition_created",
+      entityId: result.rows[0].id
     });
 
     res.status(201).json({ data: result.rows[0] });

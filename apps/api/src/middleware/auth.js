@@ -7,7 +7,8 @@ export const GLOBAL_ROLES = ["Admin", "Inspektur", "Sekretaris"];
 
 export const authenticate = asyncHandler(async (req, res, next) => {
   const header = req.headers.authorization || "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  // Fallback ke query string untuk SSE (EventSource tidak support custom header)
+  const token = header.startsWith("Bearer ") ? header.slice(7) : (req.query.token || null);
 
   if (!token) {
     throw createHttpError(401, "Token tidak ditemukan");

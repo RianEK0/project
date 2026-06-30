@@ -8,7 +8,7 @@ import { StatusBadge } from "../../../components/StatusBadge";
 import { FileTypeIcon } from "../../../components/FileTypeIcon";
 
 export default function ReportsPage() {
-  const [filters, setFilters] = useState({ search: "", unitId: "", status: "", documentType: "", archiveCategory: "", fileType: "", year: "" });
+  const [filters, setFilters] = useState({ search: "", unitId: "", status: "", documentType: "", archiveCategory: "", fileType: "", year: "", retentionStatus: "" });
   const [units, setUnits] = useState([]);
   const [report, setReport] = useState(null);
   const [error, setError] = useState("");
@@ -144,6 +144,11 @@ export default function ReportsPage() {
                 {type}
               </option>
             ))}
+          </Select>
+          <Select label="Masa Retensi" value={filters.retentionStatus} onChange={(value) => updateFilter("retentionStatus", value)}>
+            <option value="">Semua</option>
+            <option value="active_expired">Retensi Aktif Habis</option>
+            <option value="inactive_expired">Retensi Inaktif Habis</option>
           </Select>
           <label>
             <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Tahun</span>

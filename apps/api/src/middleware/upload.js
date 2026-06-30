@@ -7,8 +7,8 @@ import { createHttpError } from "../utils/http.js";
 const uploadDir = path.resolve(process.cwd(), env.uploadDir);
 fs.mkdirSync(uploadDir, { recursive: true });
 
-const allowedExtensions = new Set([".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png"]);
-const allowedMimePrefixes = ["application/pdf", "application/msword", "application/vnd", "image/jpeg", "image/png"];
+const allowedExtensions = new Set([".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png", ".tif", ".tiff"]);
+const allowedMimePrefixes = ["application/pdf", "application/msword", "application/vnd", "image/jpeg", "image/png", "image/tiff"];
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
@@ -29,7 +29,7 @@ export const archiveUpload = multer({
     const mimeAllowed = allowedMimePrefixes.some((prefix) => file.mimetype.startsWith(prefix));
 
     if (!allowedExtensions.has(ext) || !mimeAllowed) {
-      return cb(createHttpError(400, "Format file tidak diizinkan. Gunakan PDF, DOCX, XLSX, JPG, atau PNG."));
+      return cb(createHttpError(400, "Format file tidak diizinkan. Gunakan PDF, DOCX, XLSX, JPG, PNG, atau TIFF."));
     }
 
     return cb(null, true);
@@ -43,7 +43,7 @@ export function uploadedFileToDb(file) {
     filePath: file.filename,
     fileOriginalName: file.originalname,
     fileSize: file.size,
-    fileType: ext === "JPEG" ? "JPG" : ext
+    fileType: ["JPEG", "TIF"].includes(ext) ? (ext === "JPEG" ? "JPG" : "TIFF") : ext
   };
 }
 

@@ -141,7 +141,7 @@ router.post(
     );
     const managers = managersResult.rows.map((r) => r.id);
     await createNotification({
-      userIds: managers,
+      broadcast: true,
       title: "Penyusutan Menunggu Persetujuan",
       message: `Penyusutan arsip "${archive.title}" (${archive.document_number}) membutuhkan review persetujuan.`,
       type: "menunggu_persetujuan_penyusutan",
@@ -231,7 +231,7 @@ router.post(
 
       // Notify creator
       await createNotification({
-        userIds: [archive.created_by],
+        broadcast: true,
         title: "Penyusutan Disetujui",
         message: `Usulan penyusutan arsip "${archive.title}" (${archive.document_number}) telah disetujui menjadi ${nextCategory}.`,
         type: "penyusutan_selesai",
@@ -239,12 +239,9 @@ router.post(
       });
 
       if (targetCategory === "Arsip Musnah") {
-        // Also trigger notification for managers about pending verification of Pemusnahan
-        const managersResult = await query(
-          "SELECT id FROM users WHERE role IN ('Admin', 'Inspektur', 'Sekretaris') AND is_active = TRUE"
-        );
+        // Broadcast notifikasi pemusnahan menunggu verifikasi
         await createNotification({
-          userIds: managersResult.rows.map(r => r.id),
+          broadcast: true,
           title: "Pemusnahan Menunggu Verifikasi",
           message: `Arsip "${archive.title}" (${archive.document_number}) disetujui musnah dan menunggu verifikasi.`,
           type: "menunggu_verifikasi_pemusnahan",
@@ -273,7 +270,7 @@ router.post(
       });
 
       await createNotification({
-        userIds: [archive.created_by],
+        broadcast: true,
         title: "Penyusutan Ditolak",
         message: `Usulan penyusutan arsip "${archive.title}" (${archive.document_number}) ditolak oleh ${req.user.name}.`,
         type: "penyusutan_ditolak",
@@ -329,7 +326,7 @@ router.post(
     );
     const managers = managersResult.rows.map((r) => r.id);
     await createNotification({
-      userIds: managers,
+      broadcast: true,
       title: "Pemusnahan Menunggu Verifikasi",
       message: `Pemusnahan arsip "${archive.title}" (${archive.document_number}) membutuhkan verifikasi.`,
       type: "menunggu_verifikasi_pemusnahan",
@@ -417,7 +414,7 @@ router.post(
       });
 
       await createNotification({
-        userIds: [archive.created_by],
+        broadcast: true,
         title: "Usulan Pemusnahan Ditolak",
         message: `Verifikasi pemusnahan arsip "${archive.title}" (${archive.document_number}) ditolak oleh verifikator.`,
         type: "pemusnahan_ditolak",
@@ -506,7 +503,7 @@ router.post(
       });
 
       await createNotification({
-        userIds: [archive.created_by],
+        broadcast: true,
         title: "Persetujuan Pemusnahan Ditolak",
         message: `Persetujuan pemusnahan arsip "${archive.title}" (${archive.document_number}) ditolak oleh Kepala Inspektorat.`,
         type: "pemusnahan_ditolak",

@@ -3,7 +3,8 @@ import { cleanText, parseOptionalInt } from "../utils/http.js";
 export const ARCHIVE_STATUSES = ["Draft", "Menunggu Review", "Terverifikasi", "Ditolak", "Diarsipkan"];
 export const ARCHIVE_CATEGORIES = ["Arsip Aktif", "Arsip Inaktif", "Arsip Statis", "Arsip Musnah"];
 export const DISPOSITION_STATUSES = ["Dikirim", "Dibaca", "Diproses", "Selesai", "Dibatalkan"];
-export const FILE_TYPES = ["PDF", "DOC", "DOCX", "XLS", "XLSX", "JPG", "PNG"];
+export const FILE_TYPES = ["PDF", "DOC", "DOCX", "XLS", "XLSX", "JPG", "PNG", "TIFF"];
+export const SECURITY_LEVELS = ["Biasa", "Terbatas", "Rahasia"];
 
 export function buildArchiveFilters({ filters, user, alias = "a", startIndex = 1 }) {
   const values = [];
@@ -64,6 +65,13 @@ export function buildArchiveFilters({ filters, user, alias = "a", startIndex = 1
     values.push(year);
     where.push(`${alias}.year = $${index}`);
     index += 1;
+  }
+
+  const retentionStatus = cleanText(filters.retentionStatus || filters.retention_status);
+  if (retentionStatus === "active_expired") {
+    where.push(`${alias}.lifecycle_status = 'Aktif' AND ${alias}.status = 'Diarsipkan' AND CURRENT_DATE >= (${alias}.archive_date + (${alias}.active_retention * INTERVAL '1 year'))`);
+  } else if (retentionStatus === "inactive_expired") {
+    where.push(`${alias}.lifecycle_status = 'Inaktif' AND ${alias}.status = 'Diarsipkan' AND CURRENT_DATE >= (${alias}.archive_date + ((${alias}.active_retention + ${alias}.inactive_retention) * INTERVAL '1 year'))`);
   }
 
   return {

@@ -14,6 +14,7 @@ import auditLogRoutes from "./routes/auditLogs.js";
 import userRoutes from "./routes/users.js";
 import disposalRoutes from "./routes/disposals.js";
 import notificationRoutes from "./routes/notifications.js";
+import loanRoutes from "./routes/loans.js";
 import { errorHandler, notFound } from "./middleware/error.js";
 
 const app = express();
@@ -47,6 +48,7 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/audit-logs", auditLogRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/loans", loanRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

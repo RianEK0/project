@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Download, Eye, FilePlus2, MessageSquarePlus, Pencil, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { Download, Eye, FilePlus2, KeyRound, Lock, MessageSquarePlus, Pencil, Search, ShieldCheck, Trash2 } from "lucide-react";
 import Select from "react-select";
 import dataJsonClassification from "../../../data/classification.json";
 import { apiFetch, buildQuery, downloadFromApi } from "../../../lib/api";
@@ -11,6 +11,7 @@ import {
   ARCHIVE_STATUSES,
   DOCUMENT_TYPES,
   FILE_TYPES,
+  SECURITY_LEVELS,
   canChooseArchiveUnit,
   canDeleteArchive,
   canDownloadArchive,
@@ -87,6 +88,12 @@ export default function ArchivesPage() {
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [verifyTarget, setVerifyTarget] = useState(null);
   const [verifyForm, setVerifyForm] = useState({ status: "Terverifikasi", note: "" });
+
+  // Loan / borrow request
+  const [loanOpen, setLoanOpen] = useState(false);
+  const [loanTarget, setLoanTarget] = useState(null);
+  const [loanReason, setLoanReason] = useState("");
+  const [loaning, setLoaning] = useState(false);
 
   const searchParamString = searchParams.toString();
 
@@ -288,6 +295,26 @@ export default function ArchivesPage() {
     }
   }
 
+  async function submitLoanRequest(event) {
+    event.preventDefault();
+    if (!loanTarget || !loanReason.trim()) return;
+    setLoaning(true);
+    try {
+      await apiFetch("/loans/request", {
+        method: "POST",
+        body: JSON.stringify({ archiveId: loanTarget.id, reason: loanReason })
+      });
+      setLoanOpen(false);
+      setLoanTarget(null);
+      setLoanReason("");
+      await loadArchives();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoaning(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -438,6 +465,40 @@ export default function ArchivesPage() {
                           />
                         ) : null}
                         {mayDelete ? <IconButton label="Hapus" onClick={() => deleteArchive(archive)} icon={Trash2} danger /> : null}
+                        {/* Loan Request button for users without access */}
+                        {!mayView && !mayDownload ? (
+                          <div className="flex items-center gap-1.5">
+                            {archive.loan_status === "Menunggu Persetujuan" ? (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                                <Lock size={11} /> Menunggu Persetujuan
+                              </span>
+                            ) : archive.loan_status === "Ditolak" ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLoanTarget(archive);
+                                  setLoanReason("");
+                                  setLoanOpen(true);
+                                }}
+                                className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100"
+                              >
+                                <Lock size={12} /> Ajukan Ulang
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLoanTarget(archive);
+                                  setLoanReason("");
+                                  setLoanOpen(true);
+                                }}
+                                className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-brand-300 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100"
+                              >
+                                <KeyRound size={12} /> Pinjam Arsip
+                              </button>
+                            )}
+                          </div>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -696,6 +757,45 @@ export default function ArchivesPage() {
           </button>
         </form>
       </Modal>
+
+      {/* Loan Request Modal */}
+      <Modal title="Ajukan Permohonan Akses Arsip" open={loanOpen} onClose={() => setLoanOpen(false)}>
+        <form onSubmit={submitLoanRequest} className="space-y-4">
+          {loanTarget && (
+            <div className="rounded-md border border-brand-100 bg-brand-50 p-3 text-sm text-brand-700">
+              <p className="font-semibold">{loanTarget.title}</p>
+              <p className="mt-0.5 text-xs text-brand-500">{loanTarget.document_number} | {loanTarget.unit_name}</p>
+            </div>
+          )}
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Alasan Peminjaman <span className="text-red-500">*</span></span>
+            <textarea
+              value={loanReason}
+              onChange={(e) => setLoanReason(e.target.value)}
+              className="focus-ring min-h-24 w-full rounded-md border border-slate-200 p-3 text-sm"
+              placeholder="Jelaskan keperluan Anda mengakses arsip ini..."
+              required
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setLoanOpen(false)}
+              className="focus-ring rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              disabled={loaning || !loanReason.trim()}
+              className="focus-ring inline-flex items-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+            >
+              <KeyRound size={15} />
+              {loaning ? "Mengirim..." : "Kirim Permohonan"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
@@ -810,9 +910,9 @@ function ArchiveForm({ form, setForm, units, submitting, onSubmit, user }) {
         />
       </div>
       <FilterSelect label="Tingkat Keamanan" value={form.securityLevel} onChange={(value) => setForm((current) => ({ ...current, securityLevel: value }))}>
-        {["Biasa", "Terbatas", "Rahasia", "Sangat Rahasia"].map((level) => (
-          <option key={level} value={level}>
-            {level}
+        {SECURITY_LEVELS.map((level) => (
+          <option key={level} value={level} disabled={level === "Rahasia" && form.fileType !== "TIFF"}>
+            {level}{level === "Rahasia" && form.fileType !== "TIFF" ? " (hanya TIFF)" : ""}
           </option>
         ))}
       </FilterSelect>
@@ -880,7 +980,16 @@ function ArchiveForm({ form, setForm, units, submitting, onSubmit, user }) {
           </option>
         ))}
       </FilterSelect>
-      <FilterSelect label="Tipe File" value={form.fileType} onChange={(value) => setForm((current) => ({ ...current, fileType: value }))}>
+      <FilterSelect
+        label="Tipe File"
+        value={form.fileType}
+        onChange={(value) => setForm((current) => ({
+          ...current,
+          fileType: value,
+          // Reset Rahasia jika bukan TIFF
+          securityLevel: current.securityLevel === "Rahasia" && value !== "TIFF" ? "Terbatas" : current.securityLevel
+        }))}
+      >
         {FILE_TYPES.map((type) => (
           <option key={type} value={type}>
             {type}
@@ -900,7 +1009,7 @@ function ArchiveForm({ form, setForm, units, submitting, onSubmit, user }) {
         <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Upload file</span>
         <input
           type="file"
-          accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tif,.tiff"
           onChange={(event) => setForm((current) => ({ ...current, file: event.target.files?.[0] || null }))}
           className="focus-ring block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
         />

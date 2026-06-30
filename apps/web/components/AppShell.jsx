@@ -29,10 +29,11 @@ const navItems = [
   { href: "/dispositions", label: "Disposisi", icon: ClipboardList },
   { href: "/organization", label: "Organisasi", icon: Network },
   { href: "/reports", label: "Laporan", icon: BarChart3 },
-  { href: "/penyusutan", label: "Penyusutan", icon: FileDown },
+  { href: "/penyusutan", label: "Pemeliharaan & Penyusutan", icon: FileDown },
   { href: "/pemusnahan", label: "Pemusnahan", icon: Trash },
-  { href: "/audit-logs", label: "Audit Log", icon: ShieldCheck, roles: ["Admin", "Inspektur", "Sekretaris"] },
-  { href: "/users", label: "User", icon: Users, roles: ["Admin"] }
+  { href: "/peminjaman", label: "Peminjaman", icon: FileText },
+  { href: "/audit-logs", label: "Audit Log", icon: ShieldCheck, roles: ["Admin", "Inspektur", "Sekretaris", "Umpeg"] },
+  { href: "/users", label: "Kelola Pengguna", icon: Users, roles: ["Admin", "Inspektur", "Sekretaris", "Umpeg"] }
 ];
 
 export function AppShell({ children }) {
@@ -56,11 +57,57 @@ export function AppShell({ children }) {
   }, []);
 
   useEffect(() => {
-    if (user) {
-      fetchNotifications();
-      const interval = setInterval(fetchNotifications, 15000);
-      return () => clearInterval(interval);
+    if (!loading && !user) {
+      router.replace("/login");
     }
+  }, [loading, user, router]);
+
+  // SSE real-time notifications
+  useEffect(() => {
+    if (!user) return;
+
+    // Muat notifikasi awal
+    fetchNotifications();
+
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+    const token = typeof window !== "undefined" ? localStorage.getItem("sipadi_token") : null;
+    if (!token) return;
+
+    let es;
+    let reconnectTimer;
+
+    function connect() {
+      es = new EventSource(`${API_URL}/notifications/stream?token=${encodeURIComponent(token)}`);
+
+      es.onmessage = (event) => {
+        try {
+          const notif = JSON.parse(event.data);
+          // Tambah ke state hanya jika punya id (bukan heartbeat)
+          if (notif.id) {
+            setNotifications((prev) => {
+              const exists = prev.some((n) => n.id === notif.id);
+              if (exists) return prev;
+              return [notif, ...prev];
+            });
+          }
+        } catch {
+          // ignore parse error
+        }
+      };
+
+      es.onerror = () => {
+        es.close();
+        // Auto-reconnect setelah 5 detik
+        reconnectTimer = setTimeout(connect, 5000);
+      };
+    }
+
+    connect();
+
+    return () => {
+      clearTimeout(reconnectTimer);
+      if (es) es.close();
+    };
   }, [user, fetchNotifications]);
 
   const unreadCount = useMemo(() => {
