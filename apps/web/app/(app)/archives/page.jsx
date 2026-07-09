@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Download, Eye, FilePlus2, KeyRound, Lock, MessageSquarePlus, Pencil, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { CalendarClock, Download, Eye, FilePlus2, KeyRound, Lock, MessageSquarePlus, Pencil, Search, ShieldCheck, Trash2 } from "lucide-react";
 import Select from "react-select";
 import dataJsonClassification from "../../../data/classification.json";
 import { apiFetch, buildQuery, downloadFromApi } from "../../../lib/api";
@@ -93,6 +93,8 @@ export default function ArchivesPage() {
   const [loanOpen, setLoanOpen] = useState(false);
   const [loanTarget, setLoanTarget] = useState(null);
   const [loanReason, setLoanReason] = useState("");
+  const [loanStartDate, setLoanStartDate] = useState("");
+  const [loanEndDate, setLoanEndDate] = useState("");
   const [loaning, setLoaning] = useState(false);
 
   const searchParamString = searchParams.toString();
@@ -171,6 +173,10 @@ export default function ArchivesPage() {
 
   async function submitArchive(event) {
     event.preventDefault();
+    if (form.fileType === "TIFF" && form.securityLevel !== "Rahasia") {
+      setError("Arsip bertipe file TIFF wajib menggunakan tingkat keamanan 'Rahasia'");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -220,12 +226,19 @@ export default function ArchivesPage() {
         return;
       }
 
+      if (detail.security_level === "Rahasia" && detail.file_type !== "PDF") {
+        setPreviewUrl("");
+        setPreviewLoading(false);
+        setPreviewError("");
+        return;
+      }
+
       setPreviewLoading(true);
       setPreviewError("");
       setPreviewUrl("");
 
       try {
-        const response = await apiFetch(`/archives/${detail.id}/download`);
+        const response = await apiFetch(`/archives/${detail.id}/preview`);
         const blob = await response.blob();
 
         if (!active) return;
@@ -251,7 +264,7 @@ export default function ArchivesPage() {
         window.URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [detail?.id, detail?.updated_at, detailOpen]);
+  }, [detail?.id, detail?.updated_at, detail?.security_level, detail?.file_type, detailOpen]);
 
   async function submitComment(event) {
     event.preventDefault();
@@ -297,16 +310,23 @@ export default function ArchivesPage() {
 
   async function submitLoanRequest(event) {
     event.preventDefault();
-    if (!loanTarget || !loanReason.trim()) return;
+    if (!loanTarget || !loanReason.trim() || !loanStartDate || !loanEndDate) return;
     setLoaning(true);
     try {
       await apiFetch("/loans/request", {
         method: "POST",
-        body: JSON.stringify({ archiveId: loanTarget.id, reason: loanReason })
+        body: JSON.stringify({
+          archiveId: loanTarget.id,
+          reason: loanReason,
+          loanDate: loanStartDate,
+          loanDeadline: loanEndDate
+        })
       });
       setLoanOpen(false);
       setLoanTarget(null);
       setLoanReason("");
+      setLoanStartDate("");
+      setLoanEndDate("");
       await loadArchives();
     } catch (err) {
       setError(err.message);
@@ -478,6 +498,8 @@ export default function ArchivesPage() {
                                 onClick={() => {
                                   setLoanTarget(archive);
                                   setLoanReason("");
+                                  setLoanStartDate("");
+                                  setLoanEndDate("");
                                   setLoanOpen(true);
                                 }}
                                 className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100"
@@ -490,6 +512,8 @@ export default function ArchivesPage() {
                                 onClick={() => {
                                   setLoanTarget(archive);
                                   setLoanReason("");
+                                  setLoanStartDate("");
+                                  setLoanEndDate("");
                                   setLoanOpen(true);
                                 }}
                                 className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-brand-300 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100"
@@ -573,6 +597,45 @@ export default function ArchivesPage() {
                 <Info label="Ukuran file" value={formatBytes(detail.file_size)} />
               </dl>
 
+              {/* Info Peminjaman (loan date & deadline) */}
+              {detail.loan && detail.loan.status === "Disetujui" && (
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CalendarClock size={16} className="text-emerald-600" />
+                    <span className="text-sm font-bold text-emerald-700">Informasi Peminjaman</span>
+                  </div>
+                  <div className="grid gap-2 text-sm sm:grid-cols-2">
+                    <div>
+                      <span className="block text-xs font-semibold uppercase text-emerald-600">Tanggal Peminjaman</span>
+                      <span className="mt-0.5 block text-emerald-800 font-medium">
+                        {detail.loan.loan_date ? new Date(detail.loan.loan_date).toLocaleDateString("id-ID", { dateStyle: "long" }) : "-"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-xs font-semibold uppercase text-emerald-600">Batas Peminjaman</span>
+                      <span className={`mt-0.5 block font-medium ${
+                        detail.loan.loan_deadline && new Date(detail.loan.loan_deadline) < new Date()
+                          ? "text-red-600"
+                          : "text-emerald-800"
+                      }`}>
+                        {detail.loan.loan_deadline ? new Date(detail.loan.loan_deadline).toLocaleDateString("id-ID", { dateStyle: "long" }) : "-"}
+                        {detail.loan.loan_deadline && new Date(detail.loan.loan_deadline) < new Date() && (
+                          <span className="ml-1 text-xs text-red-500 font-semibold">(Sudah lewat)</span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Rahasia warning */}
+              {detail.security_level === "Rahasia" && (
+                <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                  <Lock size={15} />
+                  <span className="font-semibold">Dokumen Rahasia — Hanya dapat dilihat (view-only), tidak dapat diunduh.</span>
+                </div>
+              )}
+
               {/* Berita Acara Downloads */}
               {(detail.disposal_doc_path || detail.destruction_doc_path) && (
                 <div className="flex flex-wrap gap-2 rounded-md border border-slate-200 bg-slate-50/50 p-3 text-xs">
@@ -613,29 +676,37 @@ export default function ArchivesPage() {
                     <p className="text-xs font-semibold uppercase text-slate-500">File arsip</p>
                     <p className="mt-1 text-sm font-semibold text-ink">{detail.file_original_name || `arsip-${detail.id}`}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      downloadFromApi(
-                        `/archives/${detail.id}/download`,
-                        detail.file_original_name || `arsip-${detail.id}.${detail.file_type?.toLowerCase() || "txt"}`
-                      )
-                    }
-                    className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    <Download size={17} />
-                    Unduh
-                  </button>
+                  {detail.security_level !== "Rahasia" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        downloadFromApi(
+                          `/archives/${detail.id}/download`,
+                          detail.file_original_name || `arsip-${detail.id}.${detail.file_type?.toLowerCase() || "txt"}`
+                        )
+                      }
+                      className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <Download size={17} />
+                      Unduh
+                    </button>
+                  )}
                 </div>
-                <div className="h-[420px] bg-slate-50">
-                  {previewLoading ? (
+                <div className={`bg-slate-50 ${detail.security_level === "Rahasia" && detail.file_type !== "PDF" ? "h-[220px] relative" : "h-[420px]"}`}>
+                  {detail.security_level === "Rahasia" && detail.file_type !== "PDF" ? (
+                    <div className="flex h-full flex-col items-center justify-center p-6 text-center text-slate-500 bg-amber-50/20">
+                      <Lock className="mb-2 h-8 w-8 text-amber-600 animate-pulse" />
+                      <p className="font-semibold text-ink">Dokumen Rahasia</p>
+                      <p className="mt-1 text-xs text-slate-500 max-w-sm">Dokumen ini bersifat rahasia. Sesuai kebijakan keamanan, akses pratinjau dan unduhan dinonaktifkan.</p>
+                    </div>
+                  ) : previewLoading ? (
                     <div className="flex h-full items-center justify-center text-sm text-slate-500">Memuat file...</div>
                   ) : previewError ? (
                     <div className="flex h-full items-center justify-center p-6 text-sm text-red-600">{previewError}</div>
                   ) : previewUrl ? (
                     <object data={previewUrl} type={getPreviewMimeType(detail.file_type)} className="h-full w-full">
                       <div className="flex h-full items-center justify-center p-6 text-sm text-slate-500">
-                        Pratinjau file tidak tersedia. Gunakan tombol unduh.
+                        Pratinjau file tidak tersedia.
                       </div>
                     </object>
                   ) : null}
@@ -777,6 +848,28 @@ export default function ArchivesPage() {
               required
             />
           </label>
+          <div className="grid grid-cols-2 gap-4">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Tanggal Mulai Peminjaman <span className="text-red-500">*</span></span>
+              <input
+                type="date"
+                value={loanStartDate}
+                onChange={(e) => setLoanStartDate(e.target.value)}
+                className="focus-ring h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
+                required
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Batas Selesai Peminjaman <span className="text-red-500">*</span></span>
+              <input
+                type="date"
+                value={loanEndDate}
+                onChange={(e) => setLoanEndDate(e.target.value)}
+                className="focus-ring h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
+                required
+              />
+            </label>
+          </div>
           <div className="flex justify-end gap-2">
             <button
               type="button"
@@ -787,7 +880,7 @@ export default function ArchivesPage() {
             </button>
             <button
               type="submit"
-              disabled={loaning || !loanReason.trim()}
+              disabled={loaning || !loanReason.trim() || !loanStartDate || !loanEndDate}
               className="focus-ring inline-flex items-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
             >
               <KeyRound size={15} />
@@ -909,12 +1002,24 @@ function ArchiveForm({ form, setForm, units, submitting, onSubmit, user }) {
           }}
         />
       </div>
-      <FilterSelect label="Tingkat Keamanan" value={form.securityLevel} onChange={(value) => setForm((current) => ({ ...current, securityLevel: value }))}>
-        {SECURITY_LEVELS.map((level) => (
-          <option key={level} value={level} disabled={level === "Rahasia" && form.fileType !== "TIFF"}>
-            {level}{level === "Rahasia" && form.fileType !== "TIFF" ? " (hanya TIFF)" : ""}
-          </option>
-        ))}
+      <FilterSelect
+        label="Tingkat Keamanan"
+        value={form.securityLevel}
+        onChange={(value) => setForm((current) => ({ ...current, securityLevel: value }))}
+        disabled={form.fileType === "TIFF"}
+      >
+        {SECURITY_LEVELS.map((level) => {
+          const isTiff = form.fileType === "TIFF";
+          const isDisabled = isTiff ? level !== "Rahasia" : (level === "Rahasia" && !["TIFF", "PDF"].includes(form.fileType));
+          return (
+            <option key={level} value={level} disabled={isDisabled}>
+              {level}
+              {isTiff && level !== "Rahasia"
+                ? " (TIFF wajib Rahasia)"
+                : (level === "Rahasia" && !["TIFF", "PDF"].includes(form.fileType) ? " (hanya TIFF/PDF)" : "")}
+            </option>
+          );
+        })}
       </FilterSelect>
       <TextInput
         label="Masa Retensi Aktif (Tahun)"
@@ -986,8 +1091,8 @@ function ArchiveForm({ form, setForm, units, submitting, onSubmit, user }) {
         onChange={(value) => setForm((current) => ({
           ...current,
           fileType: value,
-          // Reset Rahasia jika bukan TIFF
-          securityLevel: current.securityLevel === "Rahasia" && value !== "TIFF" ? "Terbatas" : current.securityLevel
+          // Jika TIFF, paksa tingkat keamanan menjadi Rahasia
+          securityLevel: value === "TIFF" ? "Rahasia" : (current.securityLevel === "Rahasia" && !["TIFF", "PDF"].includes(value) ? "Terbatas" : current.securityLevel)
         }))}
       >
         {FILE_TYPES.map((type) => (
@@ -1010,7 +1115,33 @@ function ArchiveForm({ form, setForm, units, submitting, onSubmit, user }) {
         <input
           type="file"
           accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.tif,.tiff"
-          onChange={(event) => setForm((current) => ({ ...current, file: event.target.files?.[0] || null }))}
+          onChange={(event) => {
+            const file = event.target.files?.[0] || null;
+            if (file) {
+              const extension = file.name.split('.').pop().toUpperCase();
+              let matchedType = "";
+              if (FILE_TYPES.includes(extension)) {
+                matchedType = extension;
+              } else if (extension === "TIF") {
+                matchedType = "TIFF";
+              } else if (extension === "JPEG") {
+                matchedType = "JPG";
+              }
+              
+              setForm((current) => {
+                const newFileType = matchedType || current.fileType;
+                return {
+                  ...current,
+                  file,
+                  fileType: newFileType,
+                  // Jika TIFF, paksa tingkat keamanan menjadi Rahasia
+                  securityLevel: newFileType === "TIFF" ? "Rahasia" : (current.securityLevel === "Rahasia" && !["TIFF", "PDF"].includes(newFileType) ? "Terbatas" : current.securityLevel)
+                };
+              });
+            } else {
+              setForm((current) => ({ ...current, file: null }));
+            }
+          }}
           className="focus-ring block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
         />
       </label>

@@ -162,13 +162,22 @@ export function AppShell({ children }) {
         }`}
       >
         <div className="flex h-16 items-center justify-between border-b border-slate-200 px-5">
-          <Link href="/dashboard" className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-md bg-brand-600 text-sm font-bold text-white">
-              SP
-            </span>
+          <Link href="/dashboard" className="flex items-center gap-2.5">
+            <div className="flex gap-1.5 shrink-0">
+              <img
+                src="/logo_depok.png"
+                alt="Logo Kota Depok"
+                className="h-9 w-9 rounded object-contain"
+              />
+              <img
+                src="/logo-inspektorat.jpg"
+                alt="Logo Inspektorat"
+                className="h-9 w-9 rounded object-contain"
+              />
+            </div>
             <span>
               <span className="block text-lg font-bold text-ink">SIPADI</span>
-              <span className="block text-xs text-slate-500">Inspektorat</span>
+              <span className="block text-xs text-slate-500">Inspektorat Kota Depok</span>
             </span>
           </Link>
           <button

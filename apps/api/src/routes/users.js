@@ -9,7 +9,20 @@ import { logActivity } from "../services/audit.js";
 
 const router = Router();
 
-const roleSchema = z.enum(["Admin", "Inspektur", "Sekretaris", "Umpeg", "Sub Bag", "Irban Wilayah", "Staff"]);
+const roleSchema = z.enum([
+  "Admin",
+  "Inspektur",
+  "Sekretaris",
+  "Umpeg",
+  "Sub Bag Perencanaan",
+  "Sub Bag Keuangan",
+  "Irban Wilayah I",
+  "Irban Wilayah II",
+  "Irban Wilayah III",
+  "Irban Wilayah IV",
+  "Irban Wilayah V"
+]);
+
 const optionalUnitId = z.preprocess(
   (value) => (value === "" || value === null ? undefined : value),
   z.coerce.number().int().positive().optional()

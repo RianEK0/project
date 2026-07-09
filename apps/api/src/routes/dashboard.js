@@ -106,6 +106,75 @@ router.get(
       filters.values
     );
 
+    // 5. Pengarsipan per Bulan (current year, status='Diarsipkan')
+    const archivingByMonthResult = await query(
+      `SELECT DATE_PART('month', a.updated_at)::int AS month, COUNT(*)::int AS count
+       FROM archives a
+       ${creationFilter.whereSql ? creationFilter.whereSql + " AND" : "WHERE"} a.status = 'Diarsipkan'
+         AND a.updated_at >= DATE_TRUNC('year', CURRENT_DATE)
+       GROUP BY DATE_PART('month', a.updated_at)
+       ORDER BY month`,
+      creationFilter.values
+    );
+
+    // 6. Pengarsipan per Jenis Dokumen
+    const archivingByTypeResult = await query(
+      `SELECT a.document_type, COUNT(*)::int AS count
+       FROM archives a
+       ${filters.whereSql ? filters.whereSql + " AND" : "WHERE"} a.status = 'Diarsipkan'
+       GROUP BY a.document_type
+       ORDER BY count DESC`,
+      filters.values
+    );
+
+    // 7. Pengarsipan per Kategori Arsip
+    const archivingByCategoryResult = await query(
+      `SELECT a.archive_category, COUNT(*)::int AS count
+       FROM archives a
+       ${filters.whereSql ? filters.whereSql + " AND" : "WHERE"} a.status = 'Diarsipkan'
+       GROUP BY a.archive_category
+       ORDER BY count DESC`,
+      filters.values
+    );
+
+    // 8. Pengarsipan per Unit
+    const archivingByUnitResult = await query(
+      `SELECT ou.name AS unit_name, COUNT(a.id)::int AS total
+       FROM archives a
+       JOIN organization_units ou ON ou.id = a.unit_id
+       WHERE a.status = 'Diarsipkan'
+       GROUP BY ou.name
+       ORDER BY total DESC
+       LIMIT 10`,
+    );
+
+    // 9. Arsip terbaru yang diarsipkan
+    const recentArchivedResult = await query(
+      `SELECT a.id, a.title, a.document_number, a.year, a.archive_category, a.document_type,
+              a.file_type, a.security_level, a.updated_at, a.verified_at,
+              ou.name AS unit_name,
+              u.name AS verifier_name
+       FROM archives a
+       JOIN organization_units ou ON ou.id = a.unit_id
+       LEFT JOIN users u ON u.id = a.verified_by
+       WHERE a.status = 'Diarsipkan'
+       ORDER BY a.updated_at DESC
+       LIMIT 8`,
+    );
+
+    // Rekap stat pengarsipan bulan ini
+    const archivingStatsResult = await query(
+      `SELECT
+        COUNT(*)::int AS total_archived,
+        COUNT(*) FILTER (WHERE updated_at >= DATE_TRUNC('month', CURRENT_DATE))::int AS archived_this_month,
+        COUNT(*) FILTER (WHERE archive_category = 'Arsip Aktif')::int AS archived_aktif,
+        COUNT(*) FILTER (WHERE archive_category = 'Arsip Inaktif')::int AS archived_inaktif,
+        COUNT(*) FILTER (WHERE archive_category = 'Arsip Statis')::int AS archived_statis
+       FROM archives a
+       ${filters.whereSql ? filters.whereSql + " AND" : "WHERE"} a.status = 'Diarsipkan'`,
+      filters.values
+    );
+
     res.json({
       stats: {
         totalArchives: totals.rows[0].total,
@@ -119,14 +188,21 @@ router.get(
         inactiveArchives: totals.rows[0].inactive_archives,
         staticArchives: totals.rows[0].static_archives,
         destroyedArchives: totals.rows[0].destroyed_archives,
-        
+
         // New stats
         newArchives: totals.rows[0].new_archives,
         eligibleDisposal: totals.rows[0].eligible_disposal,
         inDisposal: totals.rows[0].in_disposal,
         eligibleDestruction: totals.rows[0].eligible_destruction,
         inDestruction: totals.rows[0].in_destruction,
-        destroyedThisMonth: totals.rows[0].destroyed_this_month
+        destroyedThisMonth: totals.rows[0].destroyed_this_month,
+
+        // Rekap pengarsipan
+        totalArchived: archivingStatsResult.rows[0].total_archived,
+        archivedThisMonth: archivingStatsResult.rows[0].archived_this_month,
+        archivedAktif: archivingStatsResult.rows[0].archived_aktif,
+        archivedInaktif: archivingStatsResult.rows[0].archived_inaktif,
+        archivedStatis: archivingStatsResult.rows[0].archived_statis
       },
       unitCounts: unitCounts.rows,
       recentArchives: recentArchives.rows,
@@ -135,8 +211,13 @@ router.get(
         creationByMonth: creationResult.rows,
         disposalByYear: disposalResult.rows,
         destructionByYear: destructionResult.rows,
-        byClassification: classificationResult.rows
-      }
+        byClassification: classificationResult.rows,
+        archivingByMonth: archivingByMonthResult.rows,
+        archivingByType: archivingByTypeResult.rows,
+        archivingByCategory: archivingByCategoryResult.rows,
+        archivingByUnit: archivingByUnitResult.rows
+      },
+      recentArchived: recentArchivedResult.rows
     });
   })
 );

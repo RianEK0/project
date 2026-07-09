@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, CheckCircle2, Clock, FileDown, FilePlus2, FileText, Layers3, RefreshCw, ShieldAlert, ShieldCheck, Trash } from "lucide-react";
+import { Archive, BookOpen, CheckCircle2, Clock, FileDown, FilePlus2, FileText, Layers3, RefreshCw, ShieldAlert, ShieldCheck, Trash } from "lucide-react";
 import { apiFetch, buildQuery } from "../../../lib/api";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { FileTypeIcon } from "../../../components/FileTypeIcon";
@@ -286,6 +286,29 @@ export default function DashboardPage() {
     return list.map((item) => ({ label: item.classification, val: Number(item.count) }));
   }, [dashboard]);
 
+  const archivingByMonthData = useMemo(() => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+    const base = months.map((m) => ({ label: m, val: 0 }));
+    if (dashboard?.charts?.archivingByMonth) {
+      dashboard.charts.archivingByMonth.forEach((item) => {
+        const idx = Number(item.month) - 1;
+        if (idx >= 0 && idx < 12) {
+          base[idx].val = Number(item.count);
+        }
+      });
+    }
+    return base;
+  }, [dashboard]);
+
+  const archivingByTypeData = useMemo(() => {
+    const list = dashboard?.charts?.archivingByType || [];
+    return list.map((item) => ({ label: item.document_type, val: Number(item.count) }));
+  }, [dashboard]);
+
+  const archivingByUnitData = useMemo(() => {
+    return dashboard?.charts?.archivingByUnit || [];
+  }, [dashboard]);
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -345,6 +368,111 @@ export default function DashboardPage() {
         <BarChart data={yearlyDisposalData} title="Penyusutan per Tahun" color="indigo" />
         <BarChart data={yearlyDestructionData} title="Pemusnahan per Tahun" color="red" />
         <ClassificationList data={classificationData} title="Arsip berdasarkan Klasifikasi (Top 5)" />
+      </div>
+
+      {/* ===== REKAP PENGARSIPAN ===== */}
+      <div className="mt-2 flex items-center gap-3">
+        <span className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-100">
+          <BookOpen size={17} className="text-brand-700" />
+        </span>
+        <div>
+          <h2 className="text-base font-bold text-ink">Rekap Pengarsipan</h2>
+          <p className="text-xs text-slate-500">Statistik dokumen yang telah resmi diarsipkan (status: Diarsipkan)</p>
+        </div>
+      </div>
+
+      {/* Rekap Stats */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard label="Total Diarsipkan" value={stats.totalArchived} icon={BookOpen} tone="brand" description="Semua status Diarsipkan" />
+        <StatCard label="Diarsipkan Bulan Ini" value={stats.archivedThisMonth} icon={CheckCircle2} tone="emerald" description="Bulan berjalan" />
+        <StatCard label="Arsip Aktif" value={stats.archivedAktif} icon={Archive} tone="blue" description="Kategori Arsip Aktif" />
+        <StatCard label="Arsip Inaktif" value={stats.archivedInaktif} icon={RefreshCw} tone="amber" description="Kategori Arsip Inaktif" />
+        <StatCard label="Arsip Statis" value={stats.archivedStatis} icon={ShieldCheck} tone="indigo" description="Kategori Arsip Statis" />
+      </div>
+
+      {/* Rekap Charts */}
+      <div className="grid gap-5 md:grid-cols-2">
+        <BarChart data={archivingByMonthData} title="Pengarsipan per Bulan (Tahun Ini)" color="emerald" />
+        <ClassificationList data={archivingByTypeData} title="Arsip Diarsipkan per Jenis Dokumen" />
+      </div>
+
+      {/* Rekap Detail Grid */}
+      <div className="grid gap-5 xl:grid-cols-[1fr_1.6fr]">
+        {/* Per Unit */}
+        <section className="rounded-md border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h2 className="text-base font-semibold text-ink">Diarsipkan per Unit</h2>
+            <p className="mt-0.5 text-xs text-slate-500">Jumlah arsip diarsipkan per unit organisasi</p>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {archivingByUnitData.length === 0 ? (
+              <div className="px-4 py-6 text-center text-sm text-slate-400">Belum ada data.</div>
+            ) : archivingByUnitData.map((row, i) => {
+              const maxVal = Math.max(...archivingByUnitData.map(r => r.total), 1);
+              const pct = (row.total / maxVal) * 100;
+              return (
+                <div key={i} className="px-4 py-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-slate-700 truncate max-w-[200px]" title={row.unit_name}>{row.unit_name}</span>
+                    <span className="text-xs font-bold text-ink ml-2 shrink-0">{row.total}</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                    <div className="h-full rounded-full bg-brand-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Arsip Terbaru Diarsipkan */}
+        <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+            <div>
+              <h2 className="text-base font-semibold text-ink">Arsip Terbaru Diarsipkan</h2>
+              <p className="mt-0.5 text-xs text-slate-500">Dokumen yang paling baru diarsipkan</p>
+            </div>
+            <Link href="/archives?status=Diarsipkan" className="text-sm font-semibold text-brand-700 hover:text-brand-600">
+              Lihat semua
+            </Link>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Dokumen</th>
+                  <th className="px-4 py-3">Unit</th>
+                  <th className="px-4 py-3">Jenis</th>
+                  <th className="px-4 py-3">Kategori</th>
+                  <th className="px-4 py-3">Diarsipkan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(dashboard?.recentArchived || []).map((archive) => (
+                  <tr key={archive.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-ink">{archive.title}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{archive.document_number} | {archive.year}</p>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 text-xs">{archive.unit_name}</td>
+                    <td className="px-4 py-3 text-slate-600 text-xs">{archive.document_type}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={archive.archive_category} />
+                    </td>
+                    <td className="px-4 py-3 text-slate-400 text-xs">{formatDateTime(archive.updated_at)}</td>
+                  </tr>
+                ))}
+                {!loading && (dashboard?.recentArchived?.length === 0) ? (
+                  <tr>
+                    <td className="px-4 py-8 text-center text-slate-500" colSpan={5}>
+                      Belum ada arsip yang diarsipkan.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
 
       {/* Details Grid */}

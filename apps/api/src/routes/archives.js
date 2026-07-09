@@ -65,14 +65,20 @@ function archiveInput(req, existing = {}) {
   ensureValidChoice(archiveCategory, ARCHIVE_CATEGORIES, "Kategori arsip");
   ensureValidChoice(fileType, FILE_TYPES, "Tipe file");
 
-  // "Rahasia" hanya diizinkan untuk file TIFF
-  if (securityLevel === "Rahasia" && fileType !== "TIFF") {
-    throw createHttpError(422, "Tingkat keamanan 'Rahasia' hanya diperbolehkan untuk file bertipe TIFF.");
-  }
   // Hapus "Sangat Rahasia" — normalkan ke "Rahasia" jika ada data lama
   const normalizedSecurityLevel = securityLevel === "Sangat Rahasia" ? "Rahasia" : securityLevel;
   if (!["Biasa", "Terbatas", "Rahasia"].includes(normalizedSecurityLevel)) {
     throw createHttpError(422, "Tingkat keamanan tidak valid. Pilih: Biasa, Terbatas, atau Rahasia.");
+  }
+
+  // "Rahasia" hanya diizinkan untuk file TIFF atau PDF
+  if (normalizedSecurityLevel === "Rahasia" && fileType !== "TIFF" && fileType !== "PDF") {
+    throw createHttpError(422, "Tingkat keamanan 'Rahasia' hanya diperbolehkan untuk file bertipe TIFF atau PDF.");
+  }
+
+  // Jika tipe file adalah TIFF, tingkat keamanan WAJIB "Rahasia"
+  if (fileType === "TIFF" && normalizedSecurityLevel !== "Rahasia") {
+    throw createHttpError(422, "Arsip dengan tipe file TIFF wajib menggunakan tingkat keamanan 'Rahasia'.");
   }
 
   return {
@@ -117,7 +123,7 @@ router.get(
         a.letter_number, a.archive_date, a.security_level, a.active_retention, a.inactive_retention, a.lifecycle_status,
         a.destruction_ba_number, a.destruction_date, a.destruction_method, a.destruction_officer, a.destruction_doc_path, a.destruction_photo_path,
         a.disposal_ba_number, a.disposal_doc_path,
-        l.status AS loan_status, l.id AS loan_id
+        l.status AS loan_status, l.id AS loan_id, l.loan_date, l.loan_deadline
        FROM archives a
        JOIN organization_units ou ON ou.id = a.unit_id
        LEFT JOIN users creator ON creator.id = a.created_by
@@ -248,12 +254,22 @@ router.get(
       [req.params.id]
     );
 
+    // Fetch loan info for current user
+    const loanResult = await query(
+      `SELECT l.*, u.name AS approved_by_name
+       FROM archive_loans l
+       LEFT JOIN users u ON u.id = l.approved_by
+       WHERE l.archive_id = $1 AND l.user_id = $2`,
+      [req.params.id, req.user.id]
+    );
+
     res.json({
       data: {
         ...archiveResult.rows[0],
         comments: commentsResult.rows,
         dispositions: dispositionsResult.rows,
-        lifecycleLogs: logsResult.rows
+        lifecycleLogs: logsResult.rows,
+        loan: loanResult.rows[0] || null
       }
     });
   })
@@ -419,6 +435,52 @@ router.post(
     });
 
     res.json({ data: result.rows[0] });
+  })
+);
+
+router.get(
+  "/:id/preview",
+  authenticate,
+  requireArchivePermission(canViewArchive, "Anda tidak dapat melihat arsip ini"),
+  asyncHandler(async (req, res) => {
+    const archive = req.archive;
+
+    await logActivity({
+      userId: req.user.id,
+      action: "PREVIEW",
+      entity: "archive",
+      entityId: archive.id,
+      metadata: { documentNumber: archive.document_number }
+    });
+
+    if (archive.file_path) {
+      const absolutePath = resolveUploadPath(archive.file_path);
+      if (fs.existsSync(absolutePath)) {
+        let mimeType = "application/octet-stream";
+        const ext = archive.file_type ? archive.file_type.toUpperCase() : "";
+        if (ext === "PDF") mimeType = "application/pdf";
+        else if (ext === "JPG" || ext === "JPEG") mimeType = "image/jpeg";
+        else if (ext === "PNG") mimeType = "image/png";
+        else if (ext === "TIFF" || ext === "TIF") mimeType = "image/tiff";
+
+        res.setHeader("Content-Type", mimeType);
+        res.setHeader("Content-Disposition", "inline");
+        return res.sendFile(absolutePath);
+      }
+    }
+
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Content-Disposition", "inline");
+    return res.send(
+      [
+        "SIPADI - Dokumen dummy (Preview)",
+        `Nomor: ${archive.document_number}`,
+        `Judul: ${archive.title}`,
+        `Status: ${archive.status}`,
+        "",
+        "File asli belum tersedia karena data seed menggunakan dokumen dummy."
+      ].join("\n")
+    );
   })
 );
 

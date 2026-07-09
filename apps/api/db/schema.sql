@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(60) NOT NULL UNIQUE,
   email VARCHAR(160) NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  role VARCHAR(40) NOT NULL CHECK (role IN ('Admin', 'Inspektur', 'Sekretaris', 'Sub Bag', 'Irban Wilayah', 'Staff', 'Umpeg')),
+  role VARCHAR(40) NOT NULL CHECK (role IN ('Admin', 'Inspektur', 'Sekretaris', 'Umpeg', 'Sub Bag Perencanaan', 'Sub Bag Keuangan', 'Irban Wilayah I', 'Irban Wilayah II', 'Irban Wilayah III', 'Irban Wilayah IV', 'Irban Wilayah V')),
   unit_id INTEGER REFERENCES organization_units(id) ON DELETE SET NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -149,6 +149,8 @@ CREATE TABLE IF NOT EXISTS archive_loans (
   notes TEXT,
   approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   approved_at TIMESTAMPTZ,
+  loan_date DATE,
+  loan_deadline DATE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT unique_user_archive_loan UNIQUE(user_id, archive_id)

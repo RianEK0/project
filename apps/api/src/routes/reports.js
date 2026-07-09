@@ -109,6 +109,99 @@ router.get(
   })
 );
 
+// Rekap khusus pengarsipan
+router.get(
+  "/archiving-recap",
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const filters = buildArchiveFilters({ filters: req.query, user: req.user });
+
+    // Stat utama
+    const statsResult = await query(
+      `SELECT
+        COUNT(*)::int AS total_archived,
+        COUNT(*) FILTER (WHERE updated_at >= DATE_TRUNC('month', CURRENT_DATE))::int AS archived_this_month,
+        COUNT(*) FILTER (WHERE updated_at >= DATE_TRUNC('year', CURRENT_DATE))::int AS archived_this_year,
+        COUNT(*) FILTER (WHERE archive_category = 'Arsip Aktif')::int AS archived_aktif,
+        COUNT(*) FILTER (WHERE archive_category = 'Arsip Inaktif')::int AS archived_inaktif,
+        COUNT(*) FILTER (WHERE archive_category = 'Arsip Statis')::int AS archived_statis,
+        COUNT(*) FILTER (WHERE security_level = 'Biasa')::int AS security_biasa,
+        COUNT(*) FILTER (WHERE security_level = 'Terbatas')::int AS security_terbatas,
+        COUNT(*) FILTER (WHERE security_level = 'Rahasia')::int AS security_rahasia
+       FROM archives a
+       ${filters.whereSql ? filters.whereSql + " AND" : "WHERE"} a.status = 'Diarsipkan'`,
+      filters.values
+    );
+
+    // Per unit
+    const byUnitResult = await query(
+      `SELECT ou.name AS unit_name, COUNT(a.id)::int AS total
+       FROM archives a
+       JOIN organization_units ou ON ou.id = a.unit_id
+       ${filters.whereSql ? filters.whereSql + " AND" : "WHERE"} a.status = 'Diarsipkan'
+       GROUP BY ou.name
+       ORDER BY total DESC`,
+      filters.values
+    );
+
+    // Per jenis dokumen
+    const byTypeResult = await query(
+      `SELECT a.document_type, COUNT(*)::int AS total
+       FROM archives a
+       ${filters.whereSql ? filters.whereSql + " AND" : "WHERE"} a.status = 'Diarsipkan'
+       GROUP BY a.document_type
+       ORDER BY total DESC`,
+      filters.values
+    );
+
+    // Per tahun
+    const byYearResult = await query(
+      `SELECT a.year, COUNT(*)::int AS total
+       FROM archives a
+       ${filters.whereSql ? filters.whereSql + " AND" : "WHERE"} a.status = 'Diarsipkan'
+       GROUP BY a.year
+       ORDER BY a.year DESC`,
+      filters.values
+    );
+
+    // Per tipe file
+    const byFileTypeResult = await query(
+      `SELECT a.file_type, COUNT(*)::int AS total
+       FROM archives a
+       ${filters.whereSql ? filters.whereSql + " AND" : "WHERE"} a.status = 'Diarsipkan'
+       GROUP BY a.file_type
+       ORDER BY total DESC`,
+      filters.values
+    );
+
+    // Daftar arsip diarsipkan (preview, max 100)
+    const filters2 = buildArchiveFilters({ filters: req.query, user: req.user });
+    const archivedListResult = await query(
+      `SELECT a.id, a.title, a.document_number, a.year, a.archive_category, a.document_type,
+              a.file_type, a.security_level, a.updated_at, a.verified_at, a.letter_number,
+              ou.name AS unit_name, u.name AS verifier_name
+       FROM archives a
+       JOIN organization_units ou ON ou.id = a.unit_id
+       LEFT JOIN users u ON u.id = a.verified_by
+       ${filters2.whereSql ? filters2.whereSql + " AND" : "WHERE"} a.status = 'Diarsipkan'
+       ORDER BY a.updated_at DESC
+       LIMIT 100`,
+      filters2.values
+    );
+
+    res.json({
+      stats: statsResult.rows[0],
+      byUnit: byUnitResult.rows,
+      byType: byTypeResult.rows,
+      byYear: byYearResult.rows,
+      byFileType: byFileTypeResult.rows,
+      data: archivedListResult.rows
+    });
+  })
+);
+
+
+
 router.get(
   "/archives/export",
   authenticate,

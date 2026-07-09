@@ -1,7 +1,30 @@
-export const ROLES = ["Admin", "Inspektur", "Sekretaris", "Umpeg", "Sub Bag", "Irban Wilayah", "Staff"];
+export const ROLES = [
+  "Admin",
+  "Inspektur",
+  "Sekretaris",
+  "Umpeg",
+  "Sub Bag Perencanaan",
+  "Sub Bag Keuangan",
+  "Irban Wilayah I",
+  "Irban Wilayah II",
+  "Irban Wilayah III",
+  "Irban Wilayah IV",
+  "Irban Wilayah V"
+];
 
+// Role dengan akses global lintas semua unit
 export const GLOBAL_ROLES = ["Admin", "Inspektur", "Sekretaris", "Umpeg"];
-export const UNIT_EDIT_ROLES = ["Sub Bag", "Irban Wilayah"];
+
+// Role pegawai dengan akses terbatas unit sendiri
+export const UNIT_EDIT_ROLES = [
+  "Sub Bag Perencanaan",
+  "Sub Bag Keuangan",
+  "Irban Wilayah I",
+  "Irban Wilayah II",
+  "Irban Wilayah III",
+  "Irban Wilayah IV",
+  "Irban Wilayah V"
+];
 
 export const ARCHIVE_STATUSES = ["Draft", "Menunggu Review", "Terverifikasi", "Ditolak", "Diarsipkan"];
 
@@ -31,7 +54,7 @@ export function canAccessGlobal(role) {
 }
 
 export function canChooseArchiveUnit(user) {
-  return ["Admin", "Umpeg"].includes(user?.role);
+  return GLOBAL_ROLES.includes(user?.role);
 }
 
 export function canViewArchive(user, archive, hasApprovedLoan = false) {
@@ -43,6 +66,8 @@ export function canViewArchive(user, archive, hasApprovedLoan = false) {
 }
 
 export function canDownloadArchive(user, archive, hasApprovedLoan = false) {
+  // Dokumen Rahasia tidak boleh diunduh, hanya view-only
+  if (archive?.security_level === "Rahasia") return false;
   return canViewArchive(user, archive, hasApprovedLoan);
 }
 
@@ -58,13 +83,13 @@ export function canDeleteArchive(user, archive) {
 
 export function canUpdateArchiveStatus(user, archive) {
   if (!user || !archive) return false;
-  if (["Admin", "Inspektur", "Sekretaris", "Umpeg"].includes(user.role)) return true;
-  if (user.role === "Sub Bag") {
+  if (GLOBAL_ROLES.includes(user.role)) return true;
+  if (UNIT_EDIT_ROLES.includes(user.role)) {
     return Number(user.unitId) === Number(archive.unit_id);
   }
   return false;
 }
 
 export function canCreateDisposition(user) {
-  return ["Admin", "Sekretaris", "Inspektur", "Umpeg"].includes(user?.role);
+  return GLOBAL_ROLES.includes(user?.role);
 }

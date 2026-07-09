@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, Clock, XCircle, BookOpen, Send, Users } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock, XCircle, BookOpen, Send, Users } from "lucide-react";
 import { apiFetch } from "../../../lib/api";
 import { useAuth } from "../../../components/AuthProvider";
 import { EmptyState } from "../../../components/EmptyState";
@@ -183,7 +183,8 @@ export default function PeminjamanPage() {
                     <th className="px-4 py-3">Alasan</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Keterangan</th>
-                    <th className="px-4 py-3">Tanggal</th>
+                    <th className="px-4 py-3">Tanggal Peminjaman</th>
+                    <th className="px-4 py-3">Batas Peminjaman</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -203,7 +204,35 @@ export default function PeminjamanPage() {
                       <td className="px-4 py-3 text-slate-500">
                         {req.notes || (req.status === "Disetujui" ? `Disetujui oleh ${req.approved_by_name || "-"}` : "-")}
                       </td>
-                      <td className="px-4 py-3 text-slate-400">{formatDateTime(req.updated_at)}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {req.loan_date ? (
+                          <div className="flex items-center gap-1.5">
+                            <CalendarClock size={13} className="text-emerald-500 shrink-0" />
+                            <span className="text-xs font-medium">
+                              {new Date(req.loan_date).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {req.loan_deadline ? (
+                          <div className={`flex items-center gap-1.5 ${
+                            new Date(req.loan_deadline) < new Date() ? "text-red-600" : "text-slate-600"
+                          }`}>
+                            <CalendarClock size={13} className="shrink-0" />
+                            <span className="text-xs font-medium">
+                              {new Date(req.loan_deadline).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
+                              {new Date(req.loan_deadline) < new Date() && (
+                                <span className="ml-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">Lewat</span>
+                              )}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">-</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -236,7 +265,8 @@ export default function PeminjamanPage() {
                     <th className="px-4 py-3">Pemohon</th>
                     <th className="px-4 py-3">Alasan</th>
                     <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Tanggal</th>
+                    <th className="px-4 py-3">Tanggal Peminjaman</th>
+                    <th className="px-4 py-3">Batas Peminjaman</th>
                     <th className="px-4 py-3">Aksi</th>
                   </tr>
                 </thead>
@@ -257,7 +287,35 @@ export default function PeminjamanPage() {
                       <td className="px-4 py-3">
                         <StatusBadgeLoan status={loan.status} />
                       </td>
-                      <td className="px-4 py-3 text-slate-400">{formatDateTime(loan.updated_at)}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {loan.loan_date ? (
+                          <div className="flex items-center gap-1.5">
+                            <CalendarClock size={13} className="text-emerald-500 shrink-0" />
+                            <span className="text-xs font-medium">
+                              {new Date(loan.loan_date).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {loan.loan_deadline ? (
+                          <div className={`flex items-center gap-1.5 ${
+                            new Date(loan.loan_deadline) < new Date() ? "text-red-600" : "text-slate-600"
+                          }`}>
+                            <CalendarClock size={13} className="shrink-0" />
+                            <span className="text-xs font-medium">
+                              {new Date(loan.loan_deadline).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
+                              {new Date(loan.loan_deadline) < new Date() && (
+                                <span className="ml-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">Lewat</span>
+                              )}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">-</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         {loan.status === "Menunggu Persetujuan" ? (
                           <div className="flex gap-2">
@@ -297,7 +355,7 @@ export default function PeminjamanPage() {
           {rejectTarget && (
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
               Menolak permohonan <span className="font-semibold">{rejectTarget.requester_name}</span> untuk arsip&nbsp;
-              <span className="font-semibold">"{rejectTarget.archive_title}"</span>.
+              <span className="font-semibold">&quot;{rejectTarget.archive_title}&quot;</span>.
             </div>
           )}
           <label className="block">

@@ -9,6 +9,15 @@ import { archiveUpload, resolveUploadPath } from "../middleware/upload.js";
 
 const router = Router();
 
+// Role dengan akses global (setara admin)
+const GLOBAL_ROLES = ["Admin", "Inspektur", "Sekretaris", "Umpeg"];
+// Role pegawai dengan akses unit sendiri
+const UNIT_ROLES = [
+  "Sub Bag Perencanaan", "Sub Bag Keuangan",
+  "Irban Wilayah I", "Irban Wilayah II", "Irban Wilayah III", "Irban Wilayah IV", "Irban Wilayah V"
+];
+
+
 // GET /api/disposals
 router.get(
   "/",
@@ -137,7 +146,7 @@ router.post(
 
     // Notify managers
     const managersResult = await query(
-      "SELECT id FROM users WHERE role IN ('Admin', 'Inspektur', 'Sekretaris') AND is_active = TRUE"
+      "SELECT id FROM users WHERE role IN ('Admin', 'Inspektur', 'Sekretaris', 'Umpeg') AND is_active = TRUE"
     );
     const managers = managersResult.rows.map((r) => r.id);
     await createNotification({
@@ -164,9 +173,9 @@ router.post(
 
     const isApprovedVal = isApproved === "true" || isApproved === true;
 
-    // Verify role permissions (only Admin, Inspektur, Sekretaris)
-    if (!["Admin", "Inspektur", "Sekretaris"].includes(req.user.role)) {
-      return res.status(403).json({ message: "Hanya Admin, Inspektur, atau Sekretaris yang dapat mereview usulan penyusutan." });
+    // Verify role permissions (Admin, Inspektur, Sekretaris, Umpeg)
+    if (!GLOBAL_ROLES.includes(req.user.role)) {
+      return res.status(403).json({ message: "Hanya Admin, Inspektur, Sekretaris, atau Umpeg yang dapat mereview usulan penyusutan." });
     }
 
     const archiveCheck = await query(
@@ -322,7 +331,7 @@ router.post(
 
     // Notify managers
     const managersResult = await query(
-      "SELECT id FROM users WHERE role IN ('Admin', 'Inspektur', 'Sekretaris') AND is_active = TRUE"
+      "SELECT id FROM users WHERE role IN ('Admin', 'Inspektur', 'Sekretaris', 'Umpeg') AND is_active = TRUE"
     );
     const managers = managersResult.rows.map((r) => r.id);
     await createNotification({
@@ -345,8 +354,9 @@ router.post(
     const { notes, isApproved } = req.body;
     const archiveId = req.params.id;
 
-    if (!["Admin", "Sekretaris", "Sub Bag", "Irban Wilayah"].includes(req.user.role)) {
-      return res.status(403).json({ message: "Hanya Admin, Sekretaris, Sub Bag, atau Irban yang dapat memverifikasi usulan pemusnahan." });
+    // Verifikasi pemusnahan: Global roles dan pegawai
+    if (![...GLOBAL_ROLES, ...UNIT_ROLES].includes(req.user.role)) {
+      return res.status(403).json({ message: "Anda tidak memiliki akses untuk memverifikasi usulan pemusnahan." });
     }
 
     const archiveCheck = await query(
@@ -434,8 +444,9 @@ router.post(
     const { notes, isApproved } = req.body;
     const archiveId = req.params.id;
 
-    if (!["Admin", "Inspektur"].includes(req.user.role)) {
-      return res.status(403).json({ message: "Hanya Kepala Inspektorat (Inspektur) yang dapat menyetujui pemusnahan." });
+    // Approve pemusnahan: Admin, Inspektur, dan Umpeg
+    if (!["Admin", "Inspektur", "Umpeg"].includes(req.user.role)) {
+      return res.status(403).json({ message: "Hanya Kepala Inspektorat (Inspektur) atau Admin/Umpeg yang dapat menyetujui pemusnahan." });
     }
 
     const archiveCheck = await query(
@@ -586,7 +597,7 @@ router.post(
 
     // Notify creator & managers
     const managersResult = await query(
-      "SELECT id FROM users WHERE role IN ('Admin', 'Inspektur', 'Sekretaris') AND is_active = TRUE"
+      "SELECT id FROM users WHERE role IN ('Admin', 'Inspektur', 'Sekretaris', 'Umpeg') AND is_active = TRUE"
     );
     const recipients = [...managersResult.rows.map((r) => r.id), archive.created_by];
     await createNotification({

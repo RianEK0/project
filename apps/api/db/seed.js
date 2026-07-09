@@ -27,12 +27,12 @@ const users = [
   ["Dian Pratama", "inspektur", "inspektur@sipadi.test", "Inspektur", 1],
   ["Maya Lestari", "sekretaris", "sekretaris@sipadi.test", "Sekretaris", 2],
   ["Raka Wijaya", "umpeg", "umpeg@sipadi.test", "Umpeg", 3],
-  ["Nadia Kirana", "pep", "pep@sipadi.test", "Staff", 4],
-  ["Galih Saputra", "keuangan", "keuangan@sipadi.test", "Sub Bag", 5],
-  ["Sinta Maharani", "irban1", "irban1@sipadi.test", "Irban Wilayah", 6],
-  ["Bimo Hartono", "irban3", "irban3@sipadi.test", "Irban Wilayah", 8],
-  ["Tari Anggraini", "auditor", "auditor@sipadi.test", "Staff", 11],
-  ["Fajar Nugroho", "staff", "staff@sipadi.test", "Staff", 3]
+  ["Nadia Kirana", "pep", "pep@sipadi.test", "Sub Bag Perencanaan", 4],
+  ["Galih Saputra", "keuangan", "keuangan@sipadi.test", "Sub Bag Keuangan", 5],
+  ["Sinta Maharani", "irban1", "irban1@sipadi.test", "Irban Wilayah I", 6],
+  ["Bimo Hartono", "irban3", "irban3@sipadi.test", "Irban Wilayah III", 8],
+  ["Tari Anggraini", "irban5", "irban5@sipadi.test", "Irban Wilayah V", 10],
+  ["Fajar Nugroho", "irban2", "irban2@sipadi.test", "Irban Wilayah II", 7]
 ];
 
 const statuses = ["Draft", "Menunggu Review", "Terverifikasi", "Ditolak", "Diarsipkan"];

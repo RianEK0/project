@@ -8,7 +8,7 @@ const router = Router();
 router.get(
   "/",
   authenticate,
-  authorize("Admin", "Inspektur", "Sekretaris"),
+  authorize("Admin", "Inspektur", "Sekretaris", "Umpeg"),
   asyncHandler(async (req, res) => {
     const { page, limit, offset } = pagination(req.query);
     const where = [];

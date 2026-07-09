@@ -81,6 +81,8 @@ async function runMigration() {
         notes TEXT,
         approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
         approved_at TIMESTAMPTZ,
+        loan_date DATE,
+        loan_deadline DATE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         CONSTRAINT unique_user_archive_loan UNIQUE(user_id, archive_id)
@@ -106,6 +108,13 @@ async function runMigration() {
       UPDATE users SET role = 'Staff'
       WHERE unit_id = (SELECT id FROM organization_units WHERE code = 'SUB-PEP' LIMIT 1)
         AND role = 'Sub Bag';
+    `);
+
+    // Add loan_date and loan_deadline columns to archive_loans (if not exist)
+    console.log("Menambahkan kolom loan_date dan loan_deadline ke archive_loans...");
+    await client.query(`
+      ALTER TABLE archive_loans ADD COLUMN IF NOT EXISTS loan_date DATE;
+      ALTER TABLE archive_loans ADD COLUMN IF NOT EXISTS loan_deadline DATE;
     `);
 
     await client.query("COMMIT");

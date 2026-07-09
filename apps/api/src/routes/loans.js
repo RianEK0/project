@@ -7,15 +7,19 @@ import { logActivity } from "../services/audit.js";
 
 const router = Router();
 
+// Hanya role global (Admin level) yang bisa approve/reject peminjaman
+const GLOBAL_ROLES = ["Admin", "Inspektur", "Sekretaris", "Umpeg"];
+
+
 // POST /api/loans/request
 router.post(
   "/request",
   authenticate,
   asyncHandler(async (req, res) => {
-    const { archiveId, reason } = req.body;
+    const { archiveId, reason, loanDate, loanDeadline } = req.body;
 
-    if (!archiveId || !reason || !reason.trim()) {
-      throw createHttpError(422, "ID arsip dan alasan peminjaman wajib diisi");
+    if (!archiveId || !reason || !reason.trim() || !loanDate || !loanDeadline) {
+      throw createHttpError(422, "ID arsip, alasan peminjaman, tanggal mulai, dan batas tanggal wajib diisi");
     }
 
     const archiveResult = await query(
@@ -45,19 +49,19 @@ router.post(
       // If rejected/approved previously, we reset it to pending
       const updateResult = await query(
         `UPDATE archive_loans 
-         SET reason = $1, status = 'Menunggu Persetujuan', notes = NULL, approved_by = NULL, approved_at = NULL, updated_at = NOW()
-         WHERE id = $2
+         SET reason = $1, loan_date = $2, loan_deadline = $3, status = 'Menunggu Persetujuan', notes = NULL, approved_by = NULL, approved_at = NULL, updated_at = NOW()
+         WHERE id = $4
          RETURNING *`,
-        [reason.trim(), existing.id]
+        [reason.trim(), loanDate, loanDeadline, existing.id]
       );
       loan = updateResult.rows[0];
     } else {
       // Insert new request
       const insertResult = await query(
-        `INSERT INTO archive_loans (archive_id, user_id, reason)
-         VALUES ($1, $2, $3)
+        `INSERT INTO archive_loans (archive_id, user_id, reason, loan_date, loan_deadline)
+         VALUES ($1, $2, $3, $4, $5)
          RETURNING *`,
-        [archive.id, req.user.id, reason.trim()]
+        [archive.id, req.user.id, reason.trim(), loanDate, loanDeadline]
       );
       loan = insertResult.rows[0];
     }
@@ -110,7 +114,8 @@ router.get(
   asyncHandler(async (req, res) => {
     let result;
 
-    if (req.user.role === "Admin") {
+    if (GLOBAL_ROLES.includes(req.user.role)) {
+      // Admin/Inspektur/Sekretaris/Umpeg: lihat semua permohonan
       result = await query(
         `SELECT l.*, a.title AS archive_title, a.document_number AS archive_document_number,
                 requester.name AS requester_name, requester.role AS requester_role
@@ -120,17 +125,16 @@ router.get(
          ORDER BY l.status = 'Menunggu Persetujuan' DESC, l.updated_at DESC`
       );
     } else {
-      // Find requests for archives created by current user or within their unit (if Sub Bag)
+      // Pegawai hanya bisa lihat permohonan milik sendiri
       result = await query(
         `SELECT l.*, a.title AS archive_title, a.document_number AS archive_document_number,
                 requester.name AS requester_name, requester.role AS requester_role
          FROM archive_loans l
          JOIN archives a ON a.id = l.archive_id
          JOIN users requester ON requester.id = l.user_id
-         WHERE a.created_by = $1 
-            OR ($2 = 'Sub Bag' AND a.unit_id = $3)
-         ORDER BY l.status = 'Menunggu Persetujuan' DESC, l.updated_at DESC`,
-        [req.user.id, req.user.role, req.user.unitId]
+         WHERE l.user_id = $1
+         ORDER BY l.updated_at DESC`,
+        [req.user.id]
       );
     }
 
@@ -159,11 +163,8 @@ router.post(
 
     const loan = loanResult.rows[0];
 
-    // Authorization: Admin, creator of the archive, or Sub Bag of the archive's unit
-    const isAuthorized =
-      req.user.role === "Admin" ||
-      loan.archive_creator === req.user.id ||
-      (req.user.role === "Sub Bag" && Number(loan.archive_unit_id) === Number(req.user.unitId));
+    // Authorization: Hanya GLOBAL_ROLES (Admin, Inspektur, Sekretaris, Umpeg)
+    const isAuthorized = GLOBAL_ROLES.includes(req.user.role);
 
     if (!isAuthorized) {
       throw createHttpError(403, "Anda tidak berwenang menyetujui permohonan ini");
@@ -171,7 +172,7 @@ router.post(
 
     const updateResult = await query(
       `UPDATE archive_loans
-       SET status = 'Disetujui', approved_by = $1, approved_at = NOW(), updated_at = NOW()
+       SET status = 'Disetujui', approved_by = $1, approved_at = NOW(), loan_date = COALESCE(loan_date, CURRENT_DATE), loan_deadline = COALESCE(loan_deadline, CURRENT_DATE + INTERVAL '14 days'), updated_at = NOW()
        WHERE id = $2
        RETURNING *`,
       [req.user.id, loanId]
@@ -220,11 +221,8 @@ router.post(
 
     const loan = loanResult.rows[0];
 
-    // Authorization
-    const isAuthorized =
-      req.user.role === "Admin" ||
-      loan.archive_creator === req.user.id ||
-      (req.user.role === "Sub Bag" && Number(loan.archive_unit_id) === Number(req.user.unitId));
+    // Authorization: Hanya GLOBAL_ROLES (Admin, Inspektur, Sekretaris, Umpeg)
+    const isAuthorized = GLOBAL_ROLES.includes(req.user.role);
 
     if (!isAuthorized) {
       throw createHttpError(403, "Anda tidak berwenang menolak permohonan ini");
