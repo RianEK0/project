@@ -2,6 +2,24 @@
 
 Enterprise HRIS is a modular, production-oriented Human Resource Information System built to match the expectations of modern enterprise software. This project combines a Laravel 12 API, a React 19 frontend, PostgreSQL-ready infrastructure, and a clean architectural structure designed for long-term scalability.
 
+## Product Preview
+
+The interface is presented as a focused HR operations workspace rather than a generic admin template. The screenshots below were captured from the running application in this repository.
+
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="Enterprise HRIS dashboard" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/login-page.png" alt="Enterprise HRIS login screen" width="49%">
+  <img src="docs/screenshots/employees.png" alt="Enterprise HRIS employee directory" width="49%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/organization.png" alt="Enterprise HRIS organization structure" width="49%">
+  <img src="docs/screenshots/leave.png" alt="Enterprise HRIS leave operations" width="49%">
+</p>
+
 ## What This Project Includes
 
 - Enterprise-ready backend architecture with Clean Architecture, Repository Pattern, Service Layer, DTOs, policies, and middleware
