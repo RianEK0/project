@@ -1,39 +1,142 @@
-# Sistem Manajemen Data Inspektorat Kota Depok
+# Enterprise HRIS
 
-Aplikasi web interaktif React + Tailwind CSS untuk simulasi dashboard Inspektorat Kota Depok.
+Enterprise HRIS is a modular, production-oriented Human Resource Information System built to match the expectations of modern enterprise software. This project combines a Laravel 12 API, a React 19 frontend, PostgreSQL-ready infrastructure, and a clean architectural structure designed for long-term scalability.
 
-## Menjalankan Aplikasi
+## What This Project Includes
+
+- Enterprise-ready backend architecture with Clean Architecture, Repository Pattern, Service Layer, DTOs, policies, and middleware
+- JWT authentication and role-based access control
+- Workforce management foundation for employees, departments, and teams
+- Organization structure management
+- Leave request workflow from employee to manager and HR approval
+- Governance support through audit logs and approval traceability
+- Docker-ready infrastructure with Nginx, Redis, PostgreSQL, and Mailpit
+- Supporting documentation including OpenAPI, ERD, and architecture notes
+
+## Tech Stack
+
+- Backend: Laravel 12, PHP 8.4 target runtime, REST API, PHPUnit
+- Frontend: React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, React Hook Form, Zod, Axios, React Router
+- Database: PostgreSQL
+- Infrastructure: Docker, Docker Compose, Nginx, Redis, Mailpit
+
+## Repository Structure
+
+```text
+.
+├── backend
+├── frontend
+├── docker
+├── docs
+└── docker-compose.yml
+```
+
+- `backend`: Laravel API and modular business domains
+- `frontend`: React application for the HR operations workspace
+- `docker`: PHP and Nginx container configuration
+- `docs`: architecture, API, and database documentation
+
+## Implemented Modules
+
+- Access Control
+  - JWT login
+  - role and permission management
+  - policy-based authorization
+- Dashboard
+  - workforce summary
+  - recent hires overview
+- Workforce
+  - employee directory
+  - employee creation
+  - department and team mapping
+- Organization
+  - organization structure
+  - team registry
+  - team setup workflow
+- Leave Management
+  - leave type catalog
+  - leave request submission
+  - manager to HR approval flow
+- Governance
+  - audit log feed
+  - action tracking for workforce, organization, and leave modules
+
+## Local Setup
+
+### Backend
 
 ```bash
+cd backend
+cp .env.example .env
+composer install
+php artisan key:generate
+php artisan jwt:secret
+touch database/database.sqlite
+php artisan migrate:fresh --seed
+php artisan serve
+```
+
+Local note:
+
+- Do not run `php artisan migrate --seed` and `php artisan serve` on the same terminal line.
+- If you are not using Docker, do not use `DB_HOST=postgres`.
+- The hostname `postgres` only resolves inside the Docker Compose network.
+- The fastest local setup uses SQLite.
+- If you prefer local PostgreSQL, set `DB_HOST=127.0.0.1` or your own PostgreSQL host.
+
+### Frontend
+
+```bash
+cd frontend
+cp .env.example .env
 npm install
 npm run dev
 ```
 
-Build produksi:
+### Full Stack with Docker
 
 ```bash
-npm run build
+docker compose up --build
 ```
 
-Akun login dummy:
-- admin / admin123
-- inspektur / inspektur123
-- auditor / auditor123
+In Docker mode:
 
-## Isi Data
+- the backend uses the internal PostgreSQL service with host `postgres`
+- Redis, Nginx, and Mailpit run together as part of the stack
 
-- `data/dummy-data.json`: sumber data utama aplikasi.
-- `data/*.csv`: versi tabel untuk beberapa modul.
-- `dummy_files/`: file dummy PDF, CSV, dan TXT untuk simulasi arsip, upload, download, dan preview.
+## Demo Accounts
 
-## Fitur
+- Administrator
+  - Email: `admin@enterprise-hris.local`
+  - Password: `Password123!`
+- HR Manager
+  - Email: `rafi.saputra@enterprise-hris.local`
+  - Password: `Password123!`
+- Manager
+  - Email: `alya.pratama@enterprise-hris.local`
+  - Password: `Password123!`
+- Employee
+  - Email: `nadia.putri@enterprise-hris.local`
+  - Password: `Password123!`
 
-- Dashboard statistik, agenda, notifikasi, dan grafik Recharts yang clickable.
-- Sidebar: Dashboard, Data Organisasi, Pengawasan, Dokumen & Laporan, Pengaturan.
-- Halaman tabel dengan search, filter status, filter tahun, dan pagination dummy.
-- Modal detail, tambah, edit, konfirmasi hapus, approve, preview, dan download.
-- Role based access dummy untuk Admin, Inspektur, dan Auditor.
-- Arsip Dokumen membaca file dari `dummy_files/`.
+## Verification Completed
 
-Catatan:
-Semua nama, dokumen, nomor surat, tanggal, dan data bersifat dummy/simulasi.
+The current implementation has already been validated with:
+
+- `php artisan migrate:fresh --seed`
+- `php artisan test`
+- `npm run build`
+
+## Documentation
+
+- Architecture Overview: [docs/architecture/overview.md](docs/architecture/overview.md)
+- OpenAPI Specification: [docs/api/openapi.yaml](docs/api/openapi.yaml)
+- API Guide: [docs/api/README.md](docs/api/README.md)
+- ERD: [docs/database/erd.md](docs/database/erd.md)
+- Database Diagram: [docs/database/diagram.md](docs/database/diagram.md)
+
+## Notes
+
+- The target production runtime is PHP 8.4 through `docker/php/Dockerfile`.
+- Local verification in this environment was performed with PHP 8.2 because that is the CLI version available on the machine.
+- Docker could not be executed directly in this environment because the `docker` binary was not available during implementation.

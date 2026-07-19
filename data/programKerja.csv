@@ -1,9 +1,0 @@
-id,nama,wilayah,bulan,tahun,status,anggaran
-PK-001,Pemeriksaan Kinerja Dinas Pendidikan,Wilayah I,Januari,2024,Selesai,Rp15.000.000
-PK-002,Pemeriksaan Kepatuhan Kecamatan Sukmajaya,Wilayah II,Februari,2024,Dalam Proses,Rp12.000.000
-PK-003,Evaluasi Program Dinas Kesehatan,Wilayah III,Maret,2024,Review,Rp18.000.000
-PK-004,Reviu Laporan Keuangan RSUD Kota Depok,Wilayah IV,April,2024,Selesai,Rp20.000.000
-PK-005,Pemeriksaan Barang Milik Daerah Disperkim,Wilayah V,Mei,2024,Dalam Proses,Rp16.000.000
-PK-006,Audit Pengelolaan Dana Hibah,Wilayah I,Juni,2024,Draft,Rp14.000.000
-PK-007,Monitoring Tindak Lanjut Bappeda,Wilayah II,Juli,2024,Selesai,Rp10.000.000
-PK-008,Evaluasi SAKIP Kecamatan Beji,Wilayah III,Agustus,2024,Perlu Perbaikan,Rp13.000.000

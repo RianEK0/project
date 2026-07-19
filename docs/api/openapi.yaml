@@ -1,0 +1,1021 @@
+openapi: 3.1.0
+info:
+  title: Enterprise HRIS API
+  version: 1.1.0
+  description: >
+    REST API modular untuk Enterprise HRIS. Mencakup JWT authentication, workforce
+    management, organization structure, leave approval workflow, dan governance audit trail.
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local Laravel server
+  - url: http://localhost/api/v1
+    description: Docker + Nginx gateway
+tags:
+  - name: Authentication
+  - name: Dashboard
+  - name: Workforce
+  - name: Organization
+  - name: Leave Management
+  - name: Governance
+paths:
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Authenticate user and issue JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthEnvelope"
+        "422":
+          description: Invalid credentials
+  /auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get current authenticated user profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Authenticated profile
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AuthenticatedUser"
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Invalidate current JWT token
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Logout successful
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh current JWT token
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthEnvelope"
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Get workforce dashboard summary
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DashboardSummary"
+  /departments:
+    get:
+      tags: [Workforce]
+      summary: List departments
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Department catalog
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Department"
+  /employees:
+    get:
+      tags: [Workforce]
+      summary: List employees
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+            default: 15
+      responses:
+        "200":
+          description: Employee collection
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Employee"
+                      meta:
+                        $ref: "#/components/schemas/PaginationMeta"
+    post:
+      tags: [Workforce]
+      summary: Create employee
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeUpsertRequest"
+      responses:
+        "201":
+          description: Employee created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Employee"
+  /employees/{employee}:
+    get:
+      tags: [Workforce]
+      summary: Get employee detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/EmployeeId"
+      responses:
+        "200":
+          description: Employee detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Employee"
+    put:
+      tags: [Workforce]
+      summary: Update employee
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/EmployeeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeUpsertRequest"
+      responses:
+        "200":
+          description: Employee updated
+    patch:
+      tags: [Workforce]
+      summary: Update employee partially
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/EmployeeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeUpsertRequest"
+      responses:
+        "200":
+          description: Employee updated
+    delete:
+      tags: [Workforce]
+      summary: Archive employee
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/EmployeeId"
+      responses:
+        "200":
+          description: Employee archived
+  /organization/structure:
+    get:
+      tags: [Organization]
+      summary: Get organization structure grouped by department
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Organization structure
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/OrganizationUnit"
+  /teams:
+    get:
+      tags: [Organization]
+      summary: List teams
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Team registry
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Team"
+    post:
+      tags: [Organization]
+      summary: Create team
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeamStoreRequest"
+      responses:
+        "201":
+          description: Team created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Team"
+  /leave-types:
+    get:
+      tags: [Leave Management]
+      summary: List active leave types
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Leave type catalog
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/LeaveType"
+  /leave-requests:
+    get:
+      tags: [Leave Management]
+      summary: List leave requests visible to current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Leave request ledger
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/LeaveRequest"
+    post:
+      tags: [Leave Management]
+      summary: Submit leave request
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaveRequestStore"
+      responses:
+        "201":
+          description: Leave request submitted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LeaveRequest"
+  /approvals/inbox:
+    get:
+      tags: [Leave Management]
+      summary: List pending approvals for current approver
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Approval inbox
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ApprovalInboxItem"
+  /leave-requests/{leaveRequest}/approve:
+    post:
+      tags: [Leave Management]
+      summary: Approve leave request for current approval stage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/LeaveRequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaveApprovalActionRequest"
+      responses:
+        "200":
+          description: Leave request approved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LeaveRequest"
+  /leave-requests/{leaveRequest}/reject:
+    post:
+      tags: [Leave Management]
+      summary: Reject leave request for current approval stage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/LeaveRequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/LeaveApprovalActionRequest"
+                - type: object
+                  required: [remarks]
+      responses:
+        "200":
+          description: Leave request rejected
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LeaveRequest"
+  /audit-logs:
+    get:
+      tags: [Governance]
+      summary: Paginated audit trail
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: action
+          schema:
+            type: string
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Audit log feed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/AuditLog"
+                      meta:
+                        $ref: "#/components/schemas/PaginationMeta"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    EmployeeId:
+      in: path
+      name: employee
+      required: true
+      schema:
+        type: integer
+    LeaveRequestId:
+      in: path
+      name: leaveRequest
+      required: true
+      schema:
+        type: integer
+  schemas:
+    Envelope:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+    PaginationMeta:
+      type: object
+      properties:
+        current_page:
+          type: integer
+        last_page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+      required: [current_page, last_page, per_page, total]
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+      required: [id, name, email]
+    EmployeeSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        employee_number:
+          type: string
+        full_name:
+          type: string
+      required: [id, employee_number, full_name]
+    Department:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+          nullable: true
+        cost_center:
+          type: string
+          nullable: true
+      required: [id, name, code]
+    Team:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+          nullable: true
+        employees_count:
+          type: integer
+        department:
+          allOf:
+            - $ref: "#/components/schemas/Department"
+          nullable: true
+        lead:
+          allOf:
+            - $ref: "#/components/schemas/EmployeeSummary"
+          nullable: true
+      required: [id, name, code, employees_count]
+    OrganizationUnit:
+      allOf:
+        - $ref: "#/components/schemas/Department"
+        - type: object
+          properties:
+            employees_count:
+              type: integer
+            teams_count:
+              type: integer
+            teams:
+              type: array
+              items:
+                $ref: "#/components/schemas/Team"
+          required: [employees_count, teams_count, teams]
+    Employee:
+      type: object
+      properties:
+        id:
+          type: integer
+        employee_number:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        full_name:
+          type: string
+        work_email:
+          type: string
+          format: email
+        personal_email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        job_title:
+          type: string
+        employment_type:
+          type: string
+        employment_status:
+          type: string
+        hire_date:
+          type: string
+          format: date
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+        department:
+          allOf:
+            - $ref: "#/components/schemas/Department"
+          nullable: true
+        team:
+          allOf:
+            - $ref: "#/components/schemas/Team"
+          nullable: true
+        manager:
+          allOf:
+            - $ref: "#/components/schemas/EmployeeSummary"
+          nullable: true
+        user:
+          allOf:
+            - $ref: "#/components/schemas/UserSummary"
+          nullable: true
+        meta:
+          type: object
+          additionalProperties: true
+          nullable: true
+      required:
+        - id
+        - employee_number
+        - first_name
+        - last_name
+        - full_name
+        - work_email
+        - job_title
+        - employment_type
+        - employment_status
+        - hire_date
+    EmployeeUpsertRequest:
+      type: object
+      required:
+        - employee_number
+        - first_name
+        - last_name
+        - work_email
+        - job_title
+        - employment_type
+        - employment_status
+        - department_id
+        - hire_date
+      properties:
+        employee_number:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        work_email:
+          type: string
+          format: email
+        personal_email:
+          type: string
+          format: email
+        phone:
+          type: string
+        job_title:
+          type: string
+        employment_type:
+          type: string
+          enum: [permanent, contract, probation, internship]
+        employment_status:
+          type: string
+          enum: [active, inactive, probation, resigned]
+        department_id:
+          type: integer
+        team_id:
+          type: integer
+          nullable: true
+        manager_id:
+          type: integer
+          nullable: true
+        user_id:
+          type: integer
+          nullable: true
+        hire_date:
+          type: string
+          format: date
+        birth_date:
+          type: string
+          format: date
+        meta:
+          type: object
+          additionalProperties: true
+    DashboardSummary:
+      type: object
+      properties:
+        metrics:
+          type: object
+          properties:
+            total_employees:
+              type: integer
+            active_employees:
+              type: integer
+            total_departments:
+              type: integer
+            new_hires_this_month:
+              type: integer
+        recent_hires:
+          type: array
+          items:
+            $ref: "#/components/schemas/Employee"
+      required: [metrics, recent_hires]
+    AuthEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/Envelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/AuthSession"
+    AuthSession:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+        expires_in:
+          type: integer
+        user:
+          $ref: "#/components/schemas/AuthenticatedUser"
+      required: [access_token, token_type, expires_in, user]
+    AuthenticatedUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        status:
+          type: string
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+        roles:
+          type: array
+          items:
+            type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        employee:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            employee_number:
+              type: string
+            full_name:
+              type: string
+            job_title:
+              type: string
+            department:
+              type: string
+              nullable: true
+      required: [id, name, email, status, roles, permissions]
+    TeamStoreRequest:
+      type: object
+      required: [department_id, name, code]
+      properties:
+        department_id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+          nullable: true
+        lead_employee_id:
+          type: integer
+          nullable: true
+    LeaveType:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        default_days:
+          type: integer
+        requires_attachment:
+          type: boolean
+        is_active:
+          type: boolean
+      required:
+        - id
+        - code
+        - name
+        - default_days
+        - requires_attachment
+        - is_active
+    LeaveApprovalStep:
+      type: object
+      properties:
+        id:
+          type: integer
+        stage:
+          type: string
+        status:
+          type: string
+        acted_at:
+          type: string
+          format: date-time
+          nullable: true
+        remarks:
+          type: string
+          nullable: true
+        approver:
+          allOf:
+            - $ref: "#/components/schemas/UserSummary"
+          nullable: true
+      required: [id, stage, status]
+    LeaveRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        total_days:
+          type: number
+        reason:
+          type: string
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+        rejection_reason:
+          type: string
+          nullable: true
+        leave_type:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            code:
+              type: string
+            name:
+              type: string
+        employee:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            employee_number:
+              type: string
+            full_name:
+              type: string
+            department:
+              type: string
+              nullable: true
+            team:
+              type: string
+              nullable: true
+        reviewer:
+          allOf:
+            - $ref: "#/components/schemas/UserSummary"
+          nullable: true
+        approvals:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaveApprovalStep"
+        meta:
+          type: object
+          additionalProperties: true
+          nullable: true
+      required:
+        - id
+        - status
+        - start_date
+        - end_date
+        - total_days
+        - reason
+        - approvals
+    ApprovalInboxItem:
+      allOf:
+        - $ref: "#/components/schemas/LeaveApprovalStep"
+        - type: object
+          properties:
+            leave_request:
+              type: object
+              nullable: true
+              properties:
+                id:
+                  type: integer
+                status:
+                  type: string
+                start_date:
+                  type: string
+                  format: date
+                end_date:
+                  type: string
+                  format: date
+                reason:
+                  type: string
+                leave_type:
+                  type: object
+                  nullable: true
+                  properties:
+                    id:
+                      type: integer
+                    code:
+                      type: string
+                    name:
+                      type: string
+                employee:
+                  type: object
+                  nullable: true
+                  properties:
+                    id:
+                      type: integer
+                    employee_number:
+                      type: string
+                    full_name:
+                      type: string
+                    department:
+                      type: string
+                      nullable: true
+                    team:
+                      type: string
+                      nullable: true
+    LeaveRequestStore:
+      type: object
+      required: [leave_type_id, start_date, end_date, reason]
+      properties:
+        leave_type_id:
+          type: integer
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        reason:
+          type: string
+        meta:
+          type: object
+          additionalProperties: true
+          nullable: true
+    LeaveApprovalActionRequest:
+      type: object
+      properties:
+        remarks:
+          type: string
+          nullable: true
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        action:
+          type: string
+        summary:
+          type: string
+        ip_address:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        actor:
+          allOf:
+            - $ref: "#/components/schemas/UserSummary"
+          nullable: true
+        old_values:
+          type: object
+          additionalProperties: true
+          nullable: true
+        new_values:
+          type: object
+          additionalProperties: true
+          nullable: true
+      required: [id, action, summary, created_at]
