@@ -1,14 +1,14 @@
 # Enterprise HRIS
 
-Enterprise HRIS adalah monorepo Human Resource Information System dengan backend Laravel 12 API modular dan frontend React 19. Repo ini dirancang untuk kebutuhan HR enterprise: autentikasi modern, RBAC, employee management, struktur organisasi, attendance, leave, payroll, recruitment, performance, IT asset, notifications, executive dashboard, dan audit trail.
+Enterprise HRIS is a Human Resource Information System monorepo with a modular Laravel 12 API backend and a React 19 frontend. The repository is designed for enterprise HR operations: modern authentication, RBAC, employee management, organization structure, attendance, leave, payroll, recruitment, performance, IT assets, notifications, executive dashboards, and audit trails.
 
 ## Highlights
 
-- Backend modular dengan Service Layer, DTO, repository contract, policy, middleware permission, queue, scheduler, event, dan notification.
-- Frontend React + TypeScript dengan feature-based structure untuk dashboard dan seluruh workspace HR.
-- PostgreSQL, Redis, Mailpit, Nginx, dan Docker Compose untuk local stack maupun deployment containerized.
-- REST API JSON dengan JWT authentication, refresh token, session management, pagination, filtering, sorting, dan search.
-- Dokumentasi terpusat untuk instalasi, deployment, API, ERD, flowchart, folder structure, dan contribution workflow.
+- Modular backend with a service layer, DTOs, repository contracts, policies, permission middleware, queues, scheduler jobs, events, and notifications.
+- React + TypeScript frontend with a feature-based structure for the dashboard and the full HR workspace.
+- PostgreSQL, Redis, Mailpit, Nginx, and Docker Compose for both local development and containerized deployment.
+- JSON REST API with JWT authentication, refresh tokens, session management, pagination, filtering, sorting, and search.
+- Centralized documentation for installation, deployment, API references, ERD, flowcharts, folder structure, and contribution workflow.
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@ Enterprise HRIS adalah monorepo Human Resource Information System dengan backend
 - Access Control and Security
   - Login, logout, forgot password, reset password, email verification, remember me, multi-device session, refresh token, Google Authenticator 2FA, captcha, lockout, login history, password history
 - Workforce
-  - Employee profile lengkap, document upload, salary and contract history, audit log
+  - Complete employee profiles, document upload, salary and contract history, audit log
 - Organization
   - Company, branch, department, division, section, position, manager, reporting line, organization chart
 - Attendance
@@ -72,13 +72,13 @@ Enterprise HRIS adalah monorepo Human Resource Information System dengan backend
 - `backend`
   Laravel API, business modules, migrations, seeders, tests
 - `frontend`
-  React application untuk dashboard dan seluruh workspace HR
+  React application for the dashboard and the complete HR workspace
 - `docker`
-  Dockerfile PHP-FPM, entrypoint, health check, dan konfigurasi Nginx
+  PHP-FPM Dockerfile, entrypoint scripts, health checks, and Nginx configuration
 - `docs`
-  Seluruh dokumentasi teknis, operasional, API, ERD, dan arsitektur
+  Technical, operational, API, database, and architecture documentation
 - `screenshots`
-  Screenshot referensi UI
+  UI reference screenshots
 
 ## Quick Start
 
@@ -94,7 +94,7 @@ php artisan migrate:fresh --seed
 php artisan serve
 ```
 
-Jika ingin menjalankan worker dan scheduler secara lokal:
+If you also want to run the worker and scheduler locally:
 
 ```bash
 php artisan queue:work
@@ -117,7 +117,7 @@ docker compose up --build
 docker compose exec laravel php artisan migrate --seed
 ```
 
-Frontend tersedia sebagai profile opsional:
+The frontend is available as an optional profile:
 
 ```bash
 docker compose --profile frontend up --build
@@ -181,5 +181,5 @@ npm run lint
 
 ## Notes
 
-- Docker Compose configuration sudah mencakup `laravel`, `nginx`, `postgres`, `redis`, `mailpit`, `queue`, dan `scheduler`.
-- Docker binary belum tersedia di environment kerja saat dokumentasi ini diperbarui pada Monday, July 20, 2026, jadi validasi yang dilakukan di sini bersifat file-level dan command-level, bukan container runtime verification.
+- The Docker Compose configuration already includes `laravel`, `nginx`, `postgres`, `redis`, `mailpit`, `queue`, and `scheduler`.
+- The Docker binary was not available in the working environment when this documentation was updated on Monday, July 20, 2026, so validation here is limited to file-level and command-level checks rather than live container runtime verification.

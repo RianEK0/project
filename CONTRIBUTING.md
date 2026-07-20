@@ -1,22 +1,22 @@
 # Contribution Guide
 
-Terima kasih sudah berkontribusi pada Enterprise HRIS. Dokumen ini menjelaskan standar kontribusi agar perubahan tetap konsisten, aman, dan mudah direview.
+Thank you for contributing to Enterprise HRIS. This document explains the contribution standards that help keep changes consistent, secure, and easy to review.
 
 ## Principles
 
-- Jaga business rule tetap berada di service layer atau module application layer
-- Hindari menaruh logika domain kompleks di controller
-- Selalu sertakan test untuk perubahan behavior
-- Update dokumentasi jika endpoint, workflow, atau struktur project berubah
-- Prioritaskan backward compatibility untuk API publik internal
+- Keep business rules inside the service layer or module application layer.
+- Avoid placing complex domain logic inside controllers.
+- Always include tests for behavior changes.
+- Update documentation when endpoints, workflows, or project structure change.
+- Prioritize backward compatibility for internal public APIs.
 
 ## Local Setup
 
-Ikuti panduan pada [docs/guides/installation.md](docs/guides/installation.md).
+Follow the setup guide in [docs/guides/installation.md](docs/guides/installation.md).
 
 ## Branching Recommendation
 
-Gunakan naming yang deskriptif, misalnya:
+Use descriptive branch names, for example:
 
 - `feature/attendance-shift-api`
 - `fix/payroll-approval-bug`
@@ -25,9 +25,9 @@ Gunakan naming yang deskriptif, misalnya:
 
 ## Commit Recommendation
 
-Gunakan commit yang jelas dan fokus pada satu perubahan logis per commit.
+Use clear commits focused on one logical change per commit.
 
-Contoh:
+Examples:
 
 - `feat: add payroll approval inbox api`
 - `fix: prevent duplicate attendance holiday insert`
@@ -35,50 +35,50 @@ Contoh:
 
 ## Pull Request Checklist
 
-Sebelum membuka PR, pastikan:
+Before opening a PR, make sure:
 
-- kode dapat dijalankan
-- test yang relevan lulus
-- dokumentasi diperbarui jika ada perubahan behavior
-- tidak ada secret atau credential yang ikut ter-commit
-- perubahan migration sudah direview dampaknya
+- the code runs successfully
+- relevant tests pass
+- documentation is updated for behavior changes
+- no secrets or credentials are accidentally committed
+- migration impact has been reviewed
 
 ## Backend Standards
 
-- Controller menangani request, response, dan authorization boundary
-- Validation berada di `app/Http/Requests`
-- Response transformation berada di `app/Http/Resources`
-- Business logic berada di `src/Modules/<Domain>/Application/Services`
-- Repository contract berada di `src/Modules/<Domain>/Domain/Contracts`
-- Eloquent implementation berada di `src/Modules/<Domain>/Infrastructure`
+- Controllers handle the request, response, and authorization boundary.
+- Validation belongs in `app/Http/Requests`.
+- Response transformation belongs in `app/Http/Resources`.
+- Business logic belongs in `src/Modules/<Domain>/Application/Services`.
+- Repository contracts belong in `src/Modules/<Domain>/Domain/Contracts`.
+- Eloquent implementations belong in `src/Modules/<Domain>/Infrastructure`.
 
 ## Frontend Standards
 
-- Gunakan folder berbasis feature di `frontend/src/features`
-- Tempatkan reusable UI primitive di `frontend/src/components/ui`
-- Centralize API access di file `*-api.ts`
-- Jangan campur logic networking ke komponen presentational jika bisa dipisah
+- Use feature-based folders in `frontend/src/features`.
+- Place reusable UI primitives in `frontend/src/components/ui`.
+- Centralize API access in `*-api.ts` files.
+- Do not mix networking logic into presentational components when it can be separated.
 
 ## Testing Expectations
 
 ### Backend
 
-Jalankan:
+Run:
 
 ```bash
 cd backend
 php artisan test
 ```
 
-Gunakan jenis test berikut sesuai kebutuhan:
+Use the following test types as needed:
 
-- Unit Test untuk utility, policy, helper, DTO, middleware behavior
-- Feature Test untuk workflow lintas layer
-- API Test untuk kontrak endpoint, auth, pagination, filter, sorting, dan search
+- Unit tests for utilities, policies, helpers, DTOs, and middleware behavior
+- Feature tests for cross-layer workflows
+- API tests for endpoint contracts, auth, pagination, filtering, sorting, and search
 
 ### Frontend
 
-Minimal verifikasi:
+Minimum verification:
 
 ```bash
 cd frontend
@@ -88,16 +88,16 @@ npm run build
 
 ## Documentation Expectations
 
-Update dokumentasi jika perubahan menyentuh:
+Update documentation when changes affect:
 
-- route API
-- environment variable
+- API routes
+- environment variables
 - deployment flow
 - folder structure
-- workflow approval
-- ERD atau relasi data
+- approval workflows
+- the ERD or data relationships
 
-Dokumen yang biasanya perlu dicek:
+Documents that usually need review:
 
 - `README.md`
 - `docs/api/README.md`
@@ -108,10 +108,10 @@ Dokumen yang biasanya perlu dicek:
 
 ## Review Focus
 
-Saat mereview PR, prioritaskan:
+When reviewing a PR, prioritize:
 
-- behavioral regression
-- authorization gap
+- behavioral regressions
+- authorization gaps
 - data integrity
 - audit trail consistency
 - API compatibility
@@ -119,7 +119,7 @@ Saat mereview PR, prioritaskan:
 
 ## Security Reminders
 
-- Jangan commit `.env`
-- Jangan hardcode secret
-- Jangan menurunkan guard atau middleware tanpa alasan yang jelas
-- Pastikan perubahan auth dan permission memiliki test
+- Do not commit `.env` files.
+- Do not hardcode secrets.
+- Do not weaken guards or middleware without a clear reason.
+- Make sure auth and permission changes include tests.

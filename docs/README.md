@@ -1,6 +1,6 @@
 # Documentation Index
 
-Dokumentasi project ini dibagi berdasarkan kebutuhan onboarding, operasi, arsitektur, dan API.
+This project documentation is organized by onboarding, operations, architecture, and API references.
 
 ## Getting Started
 
@@ -27,10 +27,10 @@ Dokumentasi project ini dibagi berdasarkan kebutuhan onboarding, operasi, arsite
 ## Suggested Reading Order
 
 1. Installation Guide
-2. README utama
+2. Main README
 3. Folder Structure
 4. Architecture Overview
 5. API Documentation
-6. ERD dan Flowchart
+6. ERD and Flowchart
 7. Deployment Guide
 8. Contribution Guide

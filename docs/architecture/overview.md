@@ -1,26 +1,26 @@
 # Architecture Overview
 
-Enterprise HRIS menggunakan pendekatan monorepo dengan pemisahan tegas antara API backend, frontend dashboard, container tooling, dan dokumentasi.
+Enterprise HRIS uses a monorepo approach with a clear separation between the backend API, frontend dashboard, container tooling, and documentation.
 
 ## Architectural Goals
 
-- Modular untuk domain HRIS yang terus bertambah
-- Mudah diuji melalui pemisahan service, contract, request, resource, dan policy
-- Aman untuk operasi enterprise melalui auth modern, RBAC, audit log, queue, dan scheduler
-- Mudah di-deploy secara lokal maupun containerized
+- Modular for an expanding HRIS domain surface
+- Easy to test through the separation of services, contracts, requests, resources, and policies
+- Secure for enterprise operations through modern auth, RBAC, audit logs, queues, and schedulers
+- Easy to deploy both locally and in containers
 
 ## High-Level Topology
 
-- Frontend React mengakses REST API Laravel melalui HTTP JSON
-- Laravel API mengelola authentication, authorization, business workflow, persistence, dan audit
-- PostgreSQL menjadi primary relational database
-- Redis digunakan untuk cache, queue, dan state support
-- Mailpit dipakai untuk mail testing di environment development
-- Queue worker dan scheduler berjalan sebagai service terpisah pada Docker stack
+- The React frontend consumes the Laravel REST API over JSON HTTP
+- The Laravel API manages authentication, authorization, business workflows, persistence, and auditing
+- PostgreSQL is the primary relational database
+- Redis is used for cache, queues, and runtime support state
+- Mailpit is used for mail testing in development environments
+- Queue workers and the scheduler run as separate services in the Docker stack
 
 ## Backend Architecture
 
-Backend mengikuti pola Laravel modular dengan domain-oriented structure:
+The backend follows a modular Laravel pattern with a domain-oriented structure:
 
 - `app/Http`
   - Controller, request validation, API resource, middleware
@@ -31,9 +31,9 @@ Backend mengikuti pola Laravel modular dengan domain-oriented structure:
 - `app/Notifications`, `app/Events`, `app/Listeners`
   - Cross-cutting asynchronous behavior
 - `src/Modules`
-  - Domain business logic utama
+  - Core domain business logic
 - `src/Shared`
-  - Shared DTO base, response helper, pagination helper, collection query helper
+  - Shared DTO base classes, response helpers, pagination helpers, and collection query helpers
 
 ## Module Inventory
 
@@ -126,55 +126,55 @@ Backend mengikuti pola Laravel modular dengan domain-oriented structure:
 
 ## Layering Inside Each Module
 
-Umumnya tiap module mengikuti susunan berikut:
+Each module generally follows this structure:
 
 - `Application`
-  - Use-case service dan DTO
+  - Use-case services and DTOs
 - `Domain`
-  - Contract atau interface dependency
+  - Contracts or interface dependencies
 - `Infrastructure`
-  - Eloquent model, repository implementation, persistence detail
+  - Eloquent models, repository implementations, and persistence details
 
-Prinsip dependency:
+Dependency principles:
 
-- Controller tidak mengetahui detail persistence
-- Service menggunakan repository contract atau model yang relevan
-- Shared helper dipakai untuk envelope response, pagination, filtering, sorting, dan search
+- Controllers do not know about persistence details
+- Services use repository contracts or relevant models
+- Shared helpers are used for response envelopes, pagination, filtering, sorting, and search
 
 ## API Design Principles
 
-- Semua fitur utama tersedia via REST API
-- Format response menggunakan JSON envelope
-- Pagination tersedia pada collection endpoint
-- Filter, sorting, dan search tersedia secara konsisten
-- Permission middleware digunakan di level route
-- Policy digunakan untuk resource-specific authorization
+- All core features are exposed through the REST API
+- Response formats use a JSON envelope
+- Pagination is available on collection endpoints
+- Filtering, sorting, and search are applied consistently
+- Permission middleware is enforced at the route level
+- Policies are used for resource-specific authorization
 
 ## Security Architecture
 
 - JWT access token + refresh token
 - Active session enforcement
 - Remember-me aware session lifecycle
-- Password policy dan password history
-- Account lockout dan rate limiting
-- CAPTCHA untuk login dan forgot password
-- 2FA dengan Google Authenticator compatible TOTP
-- CSRF/XSS/secure header hardening pada boundary aplikasi
+- Password policies and password history
+- Account lockout and rate limiting
+- CAPTCHA for login and forgot password
+- 2FA with Google Authenticator-compatible TOTP
+- CSRF, XSS, and secure-header hardening at the application boundary
 
 ## Asynchronous and Scheduled Processing
 
-- Queue worker memproses notification dan workload async
-- Scheduler menjalankan command terjadwal seperti snapshot workforce
-- Notifications dapat diarahkan ke email, in-app, dan connector-ready channel
+- Queue workers process notifications and asynchronous workloads
+- The scheduler runs scheduled commands such as workforce snapshots
+- Notifications can be routed to email, in-app delivery, and connector-ready channels
 
 ## Frontend Architecture
 
-Frontend menggunakan feature-based organization:
+The frontend uses a feature-based organization:
 
 - `src/app`
-  - App providers dan router
+  - App providers and router
 - `src/features`
-  - Satu folder per domain workspace
+  - One folder per domain workspace
 - `src/components/ui`
   - Reusable UI primitive
 - `src/lib`
@@ -186,13 +186,13 @@ Frontend menggunakan feature-based organization:
 
 ### Native Development
 
-- Backend dan frontend dijalankan terpisah
-- SQLite atau PostgreSQL lokal dapat dipakai
+- Backend and frontend run separately
+- Local SQLite or PostgreSQL can be used
 
 ### Docker Compose Development
 
 - `laravel`, `nginx`, `postgres`, `redis`, `mailpit`, `queue`, `scheduler`
-- frontend tersedia via profile opsional
+- the frontend is available through an optional profile
 
 ## Related Documents
 

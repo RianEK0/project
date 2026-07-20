@@ -1,6 +1,6 @@
 # ERD
 
-ERD berikut merangkum relasi inti database Enterprise HRIS. Diagram dibagi menjadi beberapa domain agar tetap mudah dibaca.
+The ERD below summarizes the core database relationships in Enterprise HRIS. The diagrams are split by domain to keep them readable.
 
 ## Identity and Access
 
@@ -190,6 +190,6 @@ erDiagram
 
 ## Notes
 
-- `notifications` menggunakan pola notifiable bawaan Laravel, sehingga relasinya bersifat polymorphic.
-- `audit_logs` juga bersifat polymorphic melalui pasangan `auditable_type` dan `auditable_id`.
-- Tabel framework seperti `jobs`, `cache`, `failed_jobs`, dan `sessions` tidak ditampilkan penuh di atas karena bukan inti domain HRIS, meskipun tetap ada di schema project.
+- `notifications` uses Laravel's built-in notifiable pattern, so its relationship is polymorphic.
+- `audit_logs` is also polymorphic through the `auditable_type` and `auditable_id` pair.
+- Framework tables such as `jobs`, `cache`, `failed_jobs`, and `sessions` are not shown in full above because they are not core HRIS domain tables, even though they still exist in the project schema.

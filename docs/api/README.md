@@ -1,13 +1,13 @@
 # API Documentation
 
-Dokumen ini adalah panduan manusia untuk seluruh surface API utama Enterprise HRIS. Untuk schema machine-readable, lihat [openapi.yaml](openapi.yaml).
+This document is the human-readable guide to the main API surface of Enterprise HRIS. For the machine-readable schema, see [openapi.yaml](openapi.yaml).
 
 ## Base URL
 
 - Local native: `http://localhost:8000/api/v1`
 - Docker via Nginx: `http://localhost:8000/api/v1`
 
-Health endpoint Laravel berada di luar prefix API:
+The Laravel health endpoint sits outside the API prefix:
 
 - `GET /up`
 
@@ -18,11 +18,11 @@ Health endpoint Laravel berada di luar prefix API:
 - Request: `application/json`
 - Response: `application/json`
 
-Untuk upload file, gunakan `multipart/form-data`.
+For file uploads, use `multipart/form-data`.
 
 ### Authentication
 
-Endpoint private menggunakan header:
+Protected endpoints use the following headers:
 
 ```http
 Authorization: Bearer <access_token>
@@ -31,7 +31,7 @@ Accept: application/json
 
 ### Response Envelope
 
-Format umum:
+General format:
 
 ```json
 {
@@ -43,12 +43,12 @@ Format umum:
 
 ### Pagination
 
-Collection endpoint mendukung:
+Collection endpoints support:
 
 - `page`
 - `per_page`
 
-Response `meta` umumnya berisi:
+The `meta` response object usually includes:
 
 - `current_page`
 - `last_page`
@@ -60,11 +60,11 @@ Response `meta` umumnya berisi:
 
 ### Filtering, Sorting, Search
 
-Konvensi yang dipakai:
+The following conventions are used:
 
 - Search: `search=<keyword>`
 - Sorting: `sort_by=<field>&sort_direction=asc|desc`
-- Filtering: parameter query per endpoint, misalnya `status`, `employee_id`, `stage`, dan seterusnya
+- Filtering: endpoint-specific query parameters such as `status`, `employee_id`, `stage`, and others
 
 ### Common Status Codes
 
@@ -83,44 +83,44 @@ Konvensi yang dipakai:
 ### Public Auth
 
 - `GET /auth/captcha`
-  - Generate captcha untuk login atau forgot password
+  - Generate a CAPTCHA for login or forgot password
 - `POST /auth/login`
-  - Login dengan email, password, captcha
+  - Log in with email, password, and CAPTCHA
 - `POST /auth/login/2fa`
-  - Verifikasi challenge two factor login
+  - Verify the two-factor login challenge
 - `POST /auth/refresh`
-  - Rotasi refresh token dan issue access token baru
+  - Rotate the refresh token and issue a new access token
 - `POST /auth/forgot-password`
-  - Kirim reset password link
+  - Send a password reset link
 - `POST /auth/reset-password`
-  - Reset password menggunakan token
+  - Reset a password using a token
 - `GET /auth/email/verify/{id}/{hash}`
-  - Verifikasi email lewat signed URL
+  - Verify email through a signed URL
 
 ### Protected Auth
 
 - `GET /auth/me`
-  - Profil user aktif
+  - Active user profile
 - `POST /auth/logout`
-  - Logout session saat ini
+  - Log out the current session
 - `POST /auth/email/verification-notification`
-  - Kirim ulang email verification
+  - Resend the email verification
 - `GET /auth/sessions`
-  - List active session user
+  - List active user sessions
 - `DELETE /auth/sessions/others`
-  - Revoke semua session selain session saat ini
+  - Revoke all sessions except the current one
 - `DELETE /auth/sessions/{sessionId}`
-  - Revoke session tertentu
+  - Revoke a specific session
 - `GET /auth/login-history`
-  - List riwayat login
+  - List login history
 - `POST /auth/two-factor/setup`
-  - Mulai setup 2FA
+  - Start 2FA setup
 - `POST /auth/two-factor/confirm`
-  - Konfirmasi setup 2FA dengan TOTP code
+  - Confirm 2FA setup using a TOTP code
 - `DELETE /auth/two-factor`
-  - Disable 2FA dengan password dan code/recovery code
+  - Disable 2FA using a password and code or recovery code
 - `POST /auth/change-password`
-  - Ubah password
+  - Change password
 
 ## Dashboard
 
@@ -130,24 +130,24 @@ Konvensi yang dipakai:
 ## Access Control
 
 - `GET /access-control`
-  - Overview role, permission, dan user access
+  - Overview of roles, permissions, and user access
 - `PUT /access-control/roles/{role}/permissions`
-  - Sinkronisasi permission pada role
+  - Synchronize permissions on a role
 - `PUT /access-control/users/{user}/roles`
-  - Sinkronisasi role pada user
+  - Synchronize roles on a user
 
 ## Workforce
 
 - `GET /departments`
   - Department directory
 - `GET /employees/lookups`
-  - Lookup data untuk employee form
+  - Lookup data for employee forms
 - `GET /employees/{employee}/audit-logs`
-  - Audit log spesifik employee
+  - Employee-specific audit logs
 - `POST /employees/{employee}/documents`
-  - Upload dokumen employee
+  - Upload employee documents
 - `DELETE /employees/{employee}/documents/{document}`
-  - Hapus dokumen employee
+  - Delete an employee document
 - `GET /employees`
   - List employee
 - `POST /employees`
@@ -430,5 +430,5 @@ Accept: application/json
 
 ## Notes
 
-- Beberapa update route mempertahankan endpoint legacy `POST .../update` untuk kompatibilitas klien lama.
-- Route matrix pada dokumen ini mengikuti file `backend/routes/api.php` yang aktif saat dokumentasi diperbarui pada Monday, July 20, 2026.
+- Some update routes retain the legacy `POST .../update` endpoint for backward compatibility with older clients.
+- The route matrix in this document follows the active `backend/routes/api.php` file as of Monday, July 20, 2026.

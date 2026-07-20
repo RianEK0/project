@@ -1,6 +1,6 @@
 # Domain Data Diagram
 
-Diagram ini menunjukkan hubungan data antar domain utama pada level business capability.
+This diagram shows the data relationships between the main domains at the business-capability level.
 
 ```mermaid
 flowchart LR

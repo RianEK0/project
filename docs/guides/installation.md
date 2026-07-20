@@ -1,6 +1,6 @@
 # Installation Guide
 
-Panduan ini mencakup dua mode instalasi:
+This guide covers two installation modes:
 
 1. Local native development
 2. Docker Compose development stack
@@ -9,12 +9,12 @@ Panduan ini mencakup dua mode instalasi:
 
 ### Native Development
 
-- PHP `8.2` atau lebih baru
+- PHP `8.2` or newer
 - Composer `2.x`
 - Node.js `22.x`
-- npm `10.x` atau yang kompatibel
-- PostgreSQL `17` jika ingin memakai PostgreSQL lokal
-- Redis `8` jika ingin queue, cache, dan session berjalan sesuai environment production-like
+- npm `10.x` or a compatible version
+- PostgreSQL `17` if you want to use a local PostgreSQL instance
+- Redis `8` if you want queues, cache, and sessions to behave closer to a production-like environment
 
 ### Docker Development
 
@@ -42,10 +42,10 @@ php artisan jwt:secret
 
 ### 2. Database Configuration
 
-Ada dua pendekatan yang disarankan:
+There are two recommended approaches:
 
-- SQLite untuk setup tercepat
-- PostgreSQL untuk behavior yang lebih mirip deployment
+- SQLite for the fastest setup
+- PostgreSQL for behavior closer to a real deployment
 
 #### SQLite
 
@@ -59,7 +59,7 @@ CACHE_STORE=file
 SESSION_DRIVER=database
 ```
 
-Lalu buat file database:
+Then create the database file:
 
 ```bash
 touch database/database.sqlite
@@ -83,10 +83,10 @@ CACHE_STORE=redis
 SESSION_DRIVER=database
 ```
 
-Catatan penting:
+Important notes:
 
-- Jangan gunakan `DB_HOST=postgres` jika Anda tidak sedang berada di dalam network Docker Compose.
-- Host `postgres` hanya valid dari dalam container stack Docker.
+- Do not use `DB_HOST=postgres` unless you are inside the Docker Compose network.
+- The `postgres` hostname is only valid from within the Docker container stack.
 
 ### 3. Migrate and Seed
 
@@ -100,7 +100,7 @@ php artisan migrate:fresh --seed
 php artisan serve
 ```
 
-Jika queue dan scheduler juga dibutuhkan:
+If you also need the queue worker and scheduler:
 
 ```bash
 php artisan queue:work
@@ -109,7 +109,7 @@ php artisan schedule:run
 
 ### 5. Frontend Setup
 
-Pindah ke root repo lalu:
+Move back to the repository root, then run:
 
 ```bash
 cd frontend
@@ -144,7 +144,7 @@ docker compose exec laravel php artisan migrate --seed
 
 ### 3. Run Frontend Profile
 
-Jika ingin frontend dev server juga aktif:
+If you also want the frontend development server running:
 
 ```bash
 docker compose --profile frontend up --build
@@ -152,7 +152,7 @@ docker compose --profile frontend up --build
 
 ## Post-Install Verification
 
-Pastikan endpoint berikut dapat diakses:
+Make sure the following endpoints are accessible:
 
 - API: `http://localhost:8000/api/v1`
 - Health: `http://localhost:8000/up`
@@ -206,8 +206,8 @@ php artisan key:generate
 
 ### Database connection failure in native mode
 
-Periksa bahwa Anda tidak memakai `DB_HOST=postgres` di luar Docker.
+Make sure you are not using `DB_HOST=postgres` outside Docker.
 
 ### Mail not visible
 
-Pastikan `MAIL_HOST=mailpit` hanya dipakai di Docker. Untuk native mode, ganti ke SMTP lokal Anda atau jalankan Mailpit sendiri.
+Make sure `MAIL_HOST=mailpit` is only used in Docker. For native mode, switch it to your local SMTP server or run Mailpit yourself.

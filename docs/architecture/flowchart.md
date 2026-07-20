@@ -1,6 +1,6 @@
 # Flowchart
 
-Dokumen ini merangkum alur sistem utama dalam bentuk Mermaid flowchart.
+This document summarizes the main system flows using Mermaid flowcharts.
 
 ## System Request Flow
 

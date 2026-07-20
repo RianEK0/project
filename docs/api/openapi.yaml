@@ -3,9 +3,9 @@ info:
   title: Enterprise HRIS API
   version: 1.1.0
   description: >
-    REST API modular untuk Enterprise HRIS. Mencakup authentication modern,
+    Modular REST API for Enterprise HRIS. Covers modern authentication,
     workforce, organization, leave, attendance, payroll, recruitment, performance,
-    IT asset, notifications, access control, dan governance audit trail.
+    IT assets, notifications, access control, and governance audit trails.
 servers:
   - url: http://localhost:8000/api/v1
     description: Local Laravel server

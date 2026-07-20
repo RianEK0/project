@@ -1,13 +1,13 @@
 # Deployment Guide
 
-Dokumen ini menjelaskan deployment untuk Enterprise HRIS dengan fokus utama pada containerized deployment. Semua langkah di bawah diasumsikan dilakukan setelah Monday, July 20, 2026, pada environment yang sudah memenuhi requirement runtime project.
+This document explains how to deploy Enterprise HRIS, with a primary focus on containerized deployment. All steps below assume they are performed after Monday, July 20, 2026, in an environment that already meets the project's runtime requirements.
 
 ## Supported Deployment Models
 
-1. Docker Compose pada single VM atau VPS
-2. Manual deployment Laravel + React pada server terpisah
+1. Docker Compose on a single VM or VPS
+2. Manual Laravel + React deployment on separate servers
 
-Model yang paling direkomendasikan untuk repo ini adalah Docker Compose, karena file stack dan dependency service sudah tersedia di repository.
+The recommended deployment model for this repository is Docker Compose because the stack files and service dependencies are already included in the repository.
 
 ## Production Components
 
@@ -22,19 +22,19 @@ Model yang paling direkomendasikan untuk repo ini adalah Docker Compose, karena 
 
 ## Pre-Deployment Checklist
 
-- Domain dan DNS sudah diarahkan ke server
-- HTTPS certificate tersedia
-- PostgreSQL dan Redis sudah memiliki capacity planning yang memadai
-- File `.env` production sudah disiapkan
-- Backup strategy database sudah didefinisikan
-- Queue worker dan scheduler sudah dipastikan ikut berjalan
+- Domain and DNS already point to the server
+- HTTPS certificates are available
+- PostgreSQL and Redis capacity planning has been completed
+- The production `.env` file is prepared
+- A database backup strategy is defined
+- Queue workers and the scheduler are confirmed to be running
 - `APP_DEBUG=false`
 - `APP_ENV=production`
-- `LOG_LEVEL=info` atau `warning`
+- `LOG_LEVEL=info` or `warning`
 
 ## Recommended Production Environment Variables
 
-Contoh nilai inti:
+Example core values:
 
 ```env
 APP_ENV=production
@@ -72,8 +72,8 @@ MAIL_FROM_NAME="Enterprise HRIS"
 
 - Install Docker Engine
 - Install Docker Compose Plugin
-- Pastikan port `80` dan `443` dapat diakses
-- Siapkan directory deployment
+- Make sure ports `80` and `443` are reachable
+- Prepare the deployment directory
 
 ### 2. Clone Repository
 
@@ -88,7 +88,7 @@ cd /srv/enterprise-hris
 cp backend/.env.example backend/.env
 ```
 
-Sesuaikan `backend/.env` untuk environment production.
+Adjust `backend/.env` for the production environment.
 
 ### 4. Start Stack
 
@@ -104,11 +104,11 @@ docker compose exec laravel php artisan db:seed --force
 docker compose exec laravel php artisan optimize
 ```
 
-Jika ini bukan first deployment, jalankan seeder hanya jika memang dibutuhkan.
+If this is not the first deployment, only run seeders when they are truly needed.
 
 ### 6. Verify Health
 
-Periksa:
+Check:
 
 - `http://your-domain/up`
 - `docker compose ps`
@@ -121,99 +121,99 @@ Periksa:
 
 ### Option A: Frontend Built Separately
 
-- Build frontend menjadi static assets
-- Serve melalui Nginx/CDN terpisah
-- Arahkan `VITE_API_BASE_URL` ke domain API
+- Build the frontend into static assets
+- Serve it through a separate Nginx host or CDN
+- Point `VITE_API_BASE_URL` to the API domain
 
 ### Option B: Frontend Dev Profile
 
-Profile frontend pada `docker-compose.yml` lebih cocok untuk development atau staging, bukan production final.
+The frontend profile in `docker-compose.yml` is better suited for development or staging, not final production.
 
-Untuk production, lebih baik frontend dibuild dan di-host sebagai static assets yang immutable.
+For production, the frontend should ideally be built and hosted as immutable static assets.
 
 ## HTTPS and Reverse Proxy
 
-Repo ini menyediakan Nginx untuk application gateway internal, tetapi untuk production Anda tetap disarankan memakai salah satu pendekatan berikut:
+This repository includes Nginx for the internal application gateway, but for production you are still encouraged to use one of the following approaches:
 
 - Nginx host-level
 - Traefik
 - Caddy
-- Cloud load balancer dengan TLS termination
+- Cloud load balancer with TLS termination
 
 Minimum checklist:
 
 - Force HTTPS
-- Set `APP_URL` dan `FRONTEND_URL` ke `https://...`
-- Gunakan trusted proxies yang sesuai
+- Set `APP_URL` and `FRONTEND_URL` to `https://...`
+- Configure trusted proxies correctly
 
 ## Queue and Scheduler
 
-Queue worker dan scheduler adalah bagian wajib untuk fitur berikut:
+Queue workers and the scheduler are required for the following features:
 
 - Notification delivery
 - Leave approval notification
 - Employee provisioning notification
 - Scheduled workforce snapshot
 
-Pastikan service `queue` dan `scheduler` selalu aktif.
+Make sure the `queue` and `scheduler` services remain active at all times.
 
 ## Post-Deployment Smoke Test
 
-Lakukan verifikasi berikut:
+Run the following checks:
 
-1. Endpoint `/up` mengembalikan `200`
-2. Login berhasil dengan akun seed atau admin production
-3. Endpoint `/api/v1/dashboard` bisa diakses setelah login
-4. Queue worker menerima job baru
-5. Mail provider bisa mengirim email
-6. Storage writable untuk upload dokumen
+1. The `/up` endpoint returns `200`
+2. Login works with a seeded account or a production admin account
+3. The `/api/v1/dashboard` endpoint is accessible after login
+4. The queue worker receives new jobs
+5. The mail provider can send email
+6. Storage is writable for document uploads
 
 ## Backup Strategy
 
-Minimal backup yang direkomendasikan:
+Minimum recommended backups:
 
 - PostgreSQL daily full backup
-- WAL or incremental strategy jika kebutuhan audit tinggi
-- Backup volume upload penting dari Laravel storage
-- Simpan backup di lokasi terpisah dari host utama
+- WAL or an incremental strategy if audit requirements are high
+- Back up important Laravel storage upload volumes
+- Store backups separately from the primary host
 
 ## Rollback Strategy
 
 Minimum rollback plan:
 
-1. Tag image atau commit deployment
-2. Simpan backup database sebelum migration besar
-3. Jika deployment gagal:
-   - rollback image/application
-   - restore database jika migration bersifat destructive
+1. Tag the deployment image or commit
+2. Save a database backup before major migrations
+3. If deployment fails:
+   - roll back the application image
+   - restore the database if the migration is destructive
 
 ## Observability
 
-Disarankan menambahkan:
+Recommended additions:
 
 - Centralized log aggregation
 - PostgreSQL monitoring
 - Redis monitoring
 - Error tracking
 - Health endpoint monitoring
-- Disk usage monitoring untuk upload dan logs
+- Disk usage monitoring for uploads and logs
 
 ## Security Checklist
 
 - `APP_DEBUG=false`
-- Password dan secret tidak disimpan di repository
-- Gunakan JWT secret unik per environment
-- Gunakan SMTP production dengan kredensial aman
-- Batasi akses database dan Redis ke network internal
-- Terapkan HTTPS end-to-end
-- Lakukan rotasi credential berkala
+- Passwords and secrets are not stored in the repository
+- Use a unique JWT secret per environment
+- Use a production SMTP provider with secure credentials
+- Restrict database and Redis access to internal networks
+- Enforce HTTPS end-to-end
+- Rotate credentials regularly
 
 ## Upgrade Notes
 
-Sebelum upgrade aplikasi:
+Before upgrading the application:
 
-1. Jalankan test suite
-2. Review migration yang akan dieksekusi
+1. Run the test suite
+2. Review the migrations that will be executed
 3. Backup database
-4. Deploy ke staging terlebih dahulu
-5. Baru deploy ke production
+4. Deploy to staging first
+5. Then deploy to production

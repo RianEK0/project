@@ -1,6 +1,6 @@
 # Folder Structure
 
-Dokumen ini menjelaskan struktur folder utama project dan tanggung jawab setiap area.
+This document explains the project's main folder structure and the responsibility of each area.
 
 ## Root Structure
 
@@ -56,11 +56,11 @@ backend/
 ### `app/Http`
 
 - Controller
-  - menerima HTTP request
-  - memanggil service
-  - mengembalikan JSON response
+  - receives HTTP requests
+  - calls services
+  - returns JSON responses
 - Requests
-  - validation rule
+  - validation rules
   - request-level normalization
 - Resources
   - response transformation
@@ -69,17 +69,17 @@ backend/
 
 ### `app/Policies`
 
-- Authorization berbasis resource
-- Cocok untuk aturan akses seperti employee visibility, leave approval, dan audit access
+- Resource-based authorization
+- Suitable for access rules such as employee visibility, leave approvals, and audit access
 
 ### `app/Notifications`, `app/Events`, `app/Listeners`
 
-- Event-driven workflow
-- Cocok untuk email verification, leave approval notification, employee provisioning, dan broadcast flow
+- Event-driven workflows
+- Suitable for email verification, leave approval notifications, employee provisioning, and broadcast flows
 
 ### `src/Modules`
 
-Setiap domain business utama berada di sini:
+Each core business domain lives here:
 
 - `AccessControl`
 - `Assets`
@@ -101,14 +101,14 @@ Setiap domain business utama berada di sini:
 
 ### `src/Modules/<Domain>/Domain`
 
-- repository contract
-- domain-facing abstraction
+- repository contracts
+- domain-facing abstractions
 
 ### `src/Modules/<Domain>/Infrastructure`
 
 - Eloquent model
 - repository implementation
-- persistence concern
+- persistence concerns
 
 ### `src/Shared`
 
@@ -165,7 +165,7 @@ frontend/
 ### `src/components/ui`
 
 - reusable UI primitives
-- button, card, input, label, badge, dan sejenisnya
+- buttons, cards, inputs, labels, badges, and similar primitives
 
 ### `src/lib`
 
@@ -209,21 +209,21 @@ docker/
 
 ## Rules for Adding New Backend Modules
 
-Jika menambah domain baru:
+When adding a new domain:
 
-1. Buat folder `backend/src/Modules/<Domain>`
-2. Tempatkan service di `Application`
-3. Tempatkan contract di `Domain`
-4. Tempatkan Eloquent implementation di `Infrastructure`
-5. Tambahkan request, controller, dan resource di `app/Http`
-6. Tambahkan feature test dan API test
-7. Perbarui dokumentasi API, ERD, dan README bila perlu
+1. Create the folder `backend/src/Modules/<Domain>`
+2. Place services in `Application`
+3. Place contracts in `Domain`
+4. Place Eloquent implementations in `Infrastructure`
+5. Add requests, controllers, and resources in `app/Http`
+6. Add feature tests and API tests
+7. Update the API documentation, ERD, and README when needed
 
 ## Rules for Adding New Frontend Features
 
-Jika menambah workspace baru:
+When adding a new workspace:
 
-1. Buat folder `frontend/src/features/<feature-name>`
-2. Pisahkan file page dan API helper
-3. Daftarkan route di `src/app/router.tsx`
-4. Perbarui env handling bila ada dependency baru
+1. Create the folder `frontend/src/features/<feature-name>`
+2. Keep page files and API helpers separate
+3. Register the route in `src/app/router.tsx`
+4. Update environment handling if new dependencies are introduced
