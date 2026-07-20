@@ -1,0 +1,17 @@
+.DS_Store
+.idea/
+.vscode/
+
+portfolio-project/
+
+backend/.env
+backend/.env.*
+backend/vendor/
+backend/storage/
+backend/build/
+backend/database/*.sqlite
+
+frontend/.env
+frontend/.env.*
+frontend/node_modules/
+frontend/dist/
