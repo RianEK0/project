@@ -1,0 +1,9 @@
+{
+  "name": "noctra",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 4173",
+    "check": "node --check src/data/catalog.js && node --check src/main.js"
+  }
+}
