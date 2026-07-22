@@ -5,6 +5,6 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "start": "python3 -m http.server 4173",
-    "check": "node --check src/data/catalog.js && node --check src/main.js && node --check scripts/build.mjs && node --check server/worker-entry.js"
+    "check": "node --check src/data/catalog.js && node --check src/audio/preview-engine.js && node --check src/ui/app-shell.js && node --check src/main.js && node --check scripts/build.mjs && node --check server/worker-entry.js"
   }
 }
