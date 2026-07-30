@@ -1,0 +1,45 @@
+{
+  "name": "@nova/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --turbopack --port 3000",
+    "build": "next build --webpack",
+    "start": "next start --port 3000",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^4.1.0",
+    "@nova/shared-types": "workspace:*",
+    "@nova/ui": "workspace:*",
+    "@nova/validation": "workspace:*",
+    "@tanstack/react-query": "^5.83.0",
+    "lucide-react": "^0.525.0",
+    "next": "^16.0.0",
+    "next-themes": "^0.4.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-hook-form": "^7.62.0",
+    "sonner": "^2.0.7",
+    "zod": "^4.0.5",
+    "zustand": "^5.0.7"
+  },
+  "devDependencies": {
+    "@nova/eslint-config": "workspace:*",
+    "@nova/typescript-config": "workspace:*",
+    "@playwright/test": "^1.54.1",
+    "@tailwindcss/postcss": "^4.1.12",
+    "@types/node": "^24.0.15",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "eslint": "^9.32.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.12",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

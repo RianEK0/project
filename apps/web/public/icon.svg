@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="NovaERP">
+  <rect width="256" height="256" rx="72" fill="#06111d" />
+  <rect x="28" y="28" width="200" height="200" rx="56" fill="#0f172a" stroke="#1e293b" stroke-width="4" />
+  <path d="M70 184V72h30l60 71V72h27v112h-30l-60-71v71H70Z" fill="#f8fbff" />
+  <path d="M93 78h24l53 63v28h-24L93 107V78Z" fill="#22d3ee" />
+  <circle cx="193" cy="63" r="18" fill="#67e8f9" />
+  <circle cx="193" cy="63" r="34" fill="#22d3ee" opacity="0.14" />
+</svg>

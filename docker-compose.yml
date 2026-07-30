@@ -1,0 +1,106 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/web.Dockerfile
+    command: sh -c "pnpm install && pnpm --filter @nova/web dev"
+    env_file:
+      - .env
+    ports:
+      - '3000:3000'
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - novaerp
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+    command: sh -c "pnpm install && pnpm --filter @nova/api dev"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/novaerp?schema=public
+      REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailpit
+    ports:
+      - '4000:4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - novaerp
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: novaerp-postgres
+    environment:
+      POSTGRES_DB: novaerp
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d novaerp']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - novaerp
+
+  redis:
+    image: redis:7-alpine
+    container_name: novaerp-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - novaerp
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: novaerp-mailpit
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+    restart: unless-stopped
+    networks:
+      - novaerp
+
+  adminer:
+    image: adminer:5
+    container_name: novaerp-adminer
+    ports:
+      - '8080:8080'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - novaerp
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  novaerp:
+    driver: bridge

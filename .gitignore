@@ -1,0 +1,17 @@
+node_modules
+.turbo
+.next
+dist
+coverage
+.env
+.env.local
+.env.*.local
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+prisma/generated
+apps/web/.next
+apps/api/dist
+apps/api/coverage
+*.log
+

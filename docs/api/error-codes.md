@@ -1,0 +1,71 @@
+# Error Codes
+
+Gunakan error code berikut secara konsisten:
+
+- `VALIDATION_ERROR`
+- `UNAUTHORIZED`
+- `FORBIDDEN`
+- `INVALID_CREDENTIALS`
+- `TOKEN_EXPIRED`
+- `TOKEN_REUSED`
+- `ACCOUNT_LOCKED`
+- `EMAIL_NOT_VERIFIED`
+- `RESOURCE_NOT_FOUND`
+- `RESOURCE_CONFLICT`
+- `TENANT_ACCESS_DENIED`
+- `LAST_OWNER_REQUIRED`
+- `INVITATION_EXPIRED`
+- `INVITATION_INVALID`
+- `PORTAL_BOOKING_NOT_FOUND`
+- `PORTAL_ORDER_NOT_FOUND`
+- `PORTAL_INVOICE_NOT_FOUND`
+- `PORTAL_PAYMENT_NOT_FOUND`
+- `SUPPORT_TICKET_NOT_FOUND`
+- `SUPPORT_TICKET_INVALID_STATUS`
+- `DOWNLOAD_ASSET_NOT_FOUND`
+- `PORTAL_NOTIFICATION_NOT_FOUND`
+- `PORTAL_TRACKING_NOT_FOUND`
+- `CHART_OF_ACCOUNT_NOT_FOUND`
+- `JOURNAL_ENTRY_NOT_FOUND`
+- `JOURNAL_ENTRY_NOT_BALANCED`
+- `JOURNAL_ENTRY_ALREADY_POSTED`
+- `POSTING_BATCH_NOT_FOUND`
+- `POSTING_BATCH_NOT_READY`
+- `ACCOUNTING_VOUCHER_NOT_FOUND`
+- `BANK_ACCOUNT_NOT_FOUND`
+- `CASH_ACCOUNT_NOT_FOUND`
+- `BUDGET_PLAN_NOT_FOUND`
+- `BUDGET_VERSION_LOCKED`
+- `FIXED_ASSET_NOT_FOUND`
+- `DEPRECIATION_RUN_NOT_FOUND`
+- `DEPRECIATION_METHOD_INVALID`
+- `COST_CENTER_NOT_FOUND`
+- `FISCAL_YEAR_NOT_FOUND`
+- `FISCAL_YEAR_ALREADY_CLOSED`
+- `CURRENCY_NOT_FOUND`
+- `EXCHANGE_RATE_NOT_FOUND`
+- `FINANCIAL_STATEMENT_NOT_READY`
+- `RATE_LIMIT_EXCEEDED`
+- `INTERNAL_SERVER_ERROR`
+
+## Error Envelope
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RESOURCE_NOT_FOUND",
+    "message": "Resource not found",
+    "details": []
+  },
+  "requestId": "req_123"
+}
+```
+
+## Portal and Support Notes
+
+- Gunakan `PORTAL_*_NOT_FOUND` untuk resource customer self-service yang tidak ditemukan.
+- Gunakan `SUPPORT_TICKET_INVALID_STATUS` untuk transisi ticket yang tidak valid.
+- Gunakan `DOWNLOAD_ASSET_NOT_FOUND` bila file portal tidak tersedia, kedaluwarsa, atau belum selesai digenerate.
+- Gunakan `JOURNAL_ENTRY_NOT_BALANCED` bila total debit dan kredit tidak seimbang.
+- Gunakan `POSTING_BATCH_NOT_READY` atau `FINANCIAL_STATEMENT_NOT_READY` untuk proses finance yang belum memenuhi prasyarat komposisi atau posting.

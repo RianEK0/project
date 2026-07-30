@@ -1,0 +1,49 @@
+{
+  "name": "novaerp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.12.0",
+  "scripts": {
+    "dev": "turbo run dev --filter=@nova/web --filter=@nova/api",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "format": "prettier --write .",
+    "db:generate": "pnpm --filter @nova/api db:generate",
+    "db:migrate": "pnpm --filter @nova/api db:migrate",
+    "db:migrate:deploy": "pnpm --filter @nova/api db:migrate:deploy",
+    "db:push": "pnpm --filter @nova/api db:push",
+    "db:seed": "pnpm --filter @nova/api db:seed",
+    "db:studio": "pnpm --filter @nova/api db:studio",
+    "db:reset": "pnpm --filter @nova/api db:reset",
+    "db:format": "pnpm --filter @nova/api db:format",
+    "docker:up": "node ./scripts/docker-compose.mjs up -d --build",
+    "docker:down": "node ./scripts/docker-compose.mjs down",
+    "prepare": "node ./scripts/prepare.mjs"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "@scarf/scarf",
+      "argon2",
+      "esbuild",
+      "prisma",
+      "sharp"
+    ]
+  },
+  "devDependencies": {
+    "husky": "^9.1.4",
+    "lint-staged": "^15.2.8",
+    "prettier": "^3.3.3",
+    "turbo": "^2.0.12",
+    "typescript": "^5.5.4"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mjs,cjs,json,md,css}": [
+      "prettier --write"
+    ]
+  }
+}
