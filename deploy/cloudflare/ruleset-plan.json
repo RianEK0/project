@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "zone_placeholder": "sipadi.example.go.id",
+  "required_settings": {
+    "ssl_mode": "strict",
+    "always_use_https": true,
+    "minimum_tls_version": "1.2",
+    "authenticated_origin_pulls": true,
+    "bot_fight_mode": true,
+    "managed_waf_rulesets": ["Cloudflare Managed Ruleset", "Cloudflare OWASP Core Ruleset"]
+  },
+  "custom_rules": [
+    {
+      "name": "Block non-standard methods",
+      "expression": "not http.request.method in {\"GET\" \"HEAD\" \"POST\" \"PUT\" \"PATCH\" \"DELETE\" \"OPTIONS\"}",
+      "action": "block"
+    }
+  ],
+  "rate_limits": [
+    {
+      "name": "Login brute force",
+      "expression": "http.request.uri.path eq \"/api/auth/login\" and http.request.method eq \"POST\"",
+      "requests": 5,
+      "period_seconds": 60,
+      "mitigation_seconds": 900,
+      "action": "managed_challenge"
+    },
+    {
+      "name": "MFA guessing",
+      "expression": "http.request.uri.path eq \"/api/auth/mfa/verify\" and http.request.method eq \"POST\"",
+      "requests": 10,
+      "period_seconds": 60,
+      "mitigation_seconds": 900,
+      "action": "block"
+    },
+    {
+      "name": "Upload abuse",
+      "expression": "starts_with(http.request.uri.path, \"/api/archives\") and http.request.method in {\"POST\" \"PUT\" \"PATCH\"}",
+      "requests": 30,
+      "period_seconds": 60,
+      "mitigation_seconds": 300,
+      "action": "managed_challenge"
+    }
+  ]
+}

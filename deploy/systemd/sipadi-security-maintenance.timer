@@ -1,0 +1,10 @@
+[Unit]
+Description=Schedule SIPADI weekly security checks
+
+[Timer]
+OnCalendar=Mon *-*-* 02:30:00 Asia/Jakarta
+Persistent=true
+RandomizedDelaySec=20m
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run SIPADI encrypted offsite backup every night
+
+[Timer]
+OnCalendar=*-*-* 01:30:00 Asia/Jakarta
+Persistent=true
+RandomizedDelaySec=15m
+Unit=sipadi-offsite-backup.service
+
+[Install]
+WantedBy=timers.target

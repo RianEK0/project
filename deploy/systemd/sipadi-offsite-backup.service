@@ -1,0 +1,20 @@
+[Unit]
+Description=SIPADI encrypted offsite backup
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=sipadi
+Group=sipadi
+WorkingDirectory=/opt/sipadi
+EnvironmentFile=/etc/sipadi/backup.env
+ExecStart=/usr/bin/npm run backup:offsite --workspace @sipadi/api
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/sipadi
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CalendarClock, Download, Eye, FilePlus2, KeyRound, Lock, MessageSquarePlus, Pencil, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { CalendarClock, Download, Eye, FilePlus2, KeyRound, Lock, MapPin, MessageSquarePlus, Pencil, RotateCcw, Search, ShieldCheck, Trash2, Upload } from "lucide-react";
 import Select from "react-select";
 import dataJsonClassification from "../../../data/classification.json";
 import { apiFetch, buildQuery, downloadFromApi } from "../../../lib/api";
@@ -52,9 +52,52 @@ const defaultForm = {
   classification: classificationOptions[0]?.value || "",
   archiveCategory: "Arsip Aktif",
   lifecycleStatus: "Aktif",
+  locationRoom: "",
+  locationRack: "",
+  locationBox: "",
+  locationFolder: "",
+  locationFileNumber: "",
   description: "",
   file: null
 };
+
+function isPastDate(dateValue) {
+  if (!dateValue) return false;
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  return dateValue < todayKey;
+}
+
+function formatLongDate(dateValue) {
+  if (!dateValue) return "-";
+  return new Date(dateValue).toLocaleDateString("id-ID", { dateStyle: "long" });
+}
+
+function formatLocationValues(values = []) {
+  return values.filter(Boolean).join(" | ") || "-";
+}
+
+function formatPhysicalLocation(archive) {
+  const values = [
+    archive?.location_room,
+    archive?.location_rack,
+    archive?.location_box,
+    archive?.location_folder,
+    archive?.location_file_number
+  ];
+  return formatLocationValues(values);
+}
+
+function formatLocationLog(entry, prefix = "new") {
+  const values = [
+    entry?.[`${prefix}_room`],
+    entry?.[`${prefix}_rack`],
+    entry?.[`${prefix}_box`],
+    entry?.[`${prefix}_folder`],
+    entry?.[`${prefix}_file_number`]
+  ];
+  return formatLocationValues(values);
+}
 
 export default function ArchivesPage() {
   const searchParams = useSearchParams();
@@ -71,6 +114,7 @@ export default function ArchivesPage() {
     archiveCategory: "",
     fileType: "",
     year: "",
+    trash: searchParams.get("trash") || "",
     page: 1
   });
   const [loading, setLoading] = useState(true);
@@ -96,6 +140,32 @@ export default function ArchivesPage() {
   const [loanStartDate, setLoanStartDate] = useState("");
   const [loanEndDate, setLoanEndDate] = useState("");
   const [loaning, setLoaning] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importPreview, setImportPreview] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
+  const [movingLocation, setMovingLocation] = useState(false);
+  const [locationForm, setLocationForm] = useState({
+    locationRoom: "",
+    locationRack: "",
+    locationBox: "",
+    locationFolder: "",
+    locationFileNumber: "",
+    notes: ""
+  });
+  const [stockOpen, setStockOpen] = useState(false);
+  const [stocking, setStocking] = useState(false);
+  const [stockForm, setStockForm] = useState({
+    status: "Sesuai",
+    notes: "",
+    observedRoom: "",
+    observedRack: "",
+    observedBox: "",
+    observedFolder: "",
+    observedFileNumber: "",
+    applyLocationUpdate: false
+  });
 
   const searchParamString = searchParams.toString();
 
@@ -118,8 +188,9 @@ export default function ArchivesPage() {
   useEffect(() => {
     const params = new URLSearchParams(searchParamString);
     const search = params.get("search") || "";
+    const trash = params.get("trash") || "";
     const openNew = params.get("new") === "1";
-    setFilters((current) => ({ ...current, search, page: 1 }));
+    setFilters((current) => ({ ...current, search, trash, page: 1 }));
     if (openNew) openCreate();
   }, [searchParamString, openCreate]);
 
@@ -165,6 +236,11 @@ export default function ArchivesPage() {
       classification: archive.classification || classificationOptions[0]?.value || "",
       archiveCategory: archive.archive_category || "Arsip Aktif",
       lifecycleStatus: archive.lifecycle_status || "Aktif",
+      locationRoom: archive.location_room || "",
+      locationRack: archive.location_rack || "",
+      locationBox: archive.location_box || "",
+      locationFolder: archive.location_folder || "",
+      locationFileNumber: archive.location_file_number || "",
       description: archive.description || "",
       file: null
     });
@@ -226,7 +302,7 @@ export default function ArchivesPage() {
         return;
       }
 
-      if (detail.security_level === "Rahasia" && detail.file_type !== "PDF") {
+      if (detail.deleted_at || (detail.security_level === "Rahasia" && detail.file_type !== "PDF")) {
         setPreviewUrl("");
         setPreviewLoading(false);
         setPreviewError("");
@@ -264,7 +340,7 @@ export default function ArchivesPage() {
         window.URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [detail?.id, detail?.updated_at, detail?.security_level, detail?.file_type, detailOpen]);
+  }, [detail?.id, detail?.updated_at, detail?.security_level, detail?.file_type, detail?.deleted_at, detailOpen]);
 
   async function submitComment(event) {
     event.preventDefault();
@@ -298,10 +374,21 @@ export default function ArchivesPage() {
   }
 
   async function deleteArchive(archive) {
-    const confirmed = window.confirm(`Hapus arsip "${archive.title}"?`);
+    const confirmed = window.confirm(`Pindahkan arsip "${archive.title}" ke sampah?`);
     if (!confirmed) return;
     try {
       await apiFetch(`/archives/${archive.id}`, { method: "DELETE" });
+      await loadArchives();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function restoreArchive(archive) {
+    const confirmed = window.confirm(`Restore arsip "${archive.title}" dari sampah?`);
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/archives/${archive.id}/restore`, { method: "POST" });
       await loadArchives();
     } catch (err) {
       setError(err.message);
@@ -335,22 +422,170 @@ export default function ArchivesPage() {
     }
   }
 
+  function downloadImportTemplate() {
+    const sample = [
+      "title,document_number,document_type,unit_id,year,status,classification,archive_category,archive_date,security_level,active_retention,inactive_retention,lifecycle_status,location_room,location_rack,location_box,location_folder,location_file_number,description",
+      'Contoh Arsip,SIPADI/2026/00001,Surat Masuk,1,2026,Draft,Internal,Arsip Aktif,2026-08-05,Biasa,2,3,Aktif,Ruang Arsip,Rak A,Box 01,Map Merah,BRK-001,"Contoh data import dari CSV"'
+    ].join("\n");
+    const blob = new Blob([sample], { type: "text/csv;charset=utf-8;" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "template-import-arsip.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  }
+
+  async function submitImportSpreadsheet(event) {
+    event.preventDefault();
+    if (!importFile) return;
+    setImporting(true);
+    setError("");
+    try {
+      const payload = new FormData();
+      payload.append("file", importFile);
+      if (!importPreview) {
+        const result = await apiFetch("/archives/import-preview", {
+          method: "POST",
+          body: payload
+        });
+        setImportPreview(result.data);
+      } else {
+        await apiFetch("/archives/import-spreadsheet", {
+          method: "POST",
+          body: payload
+        });
+        setImportOpen(false);
+        setImportFile(null);
+        setImportPreview(null);
+        await loadArchives();
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function submitLocationMove(event) {
+    event.preventDefault();
+    if (!detail) return;
+    setMovingLocation(true);
+    setError("");
+    try {
+      await apiFetch(`/archives/${detail.id}/move-location`, {
+        method: "POST",
+        body: JSON.stringify(locationForm)
+      });
+      setLocationOpen(false);
+      await Promise.all([openDetail(detail.id), loadArchives()]);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setMovingLocation(false);
+    }
+  }
+
+  async function submitStockOpname(event) {
+    event.preventDefault();
+    if (!detail) return;
+    setStocking(true);
+    setError("");
+    try {
+      await apiFetch(`/archives/${detail.id}/stock-opname`, {
+        method: "POST",
+        body: JSON.stringify(stockForm)
+      });
+      setStockOpen(false);
+      await Promise.all([openDetail(detail.id), loadArchives()]);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setStocking(false);
+    }
+  }
+
+  function openLocationModal() {
+    if (!detail) return;
+    setLocationForm({
+      locationRoom: detail.location_room || "",
+      locationRack: detail.location_rack || "",
+      locationBox: detail.location_box || "",
+      locationFolder: detail.location_folder || "",
+      locationFileNumber: detail.location_file_number || "",
+      notes: ""
+    });
+    setLocationOpen(true);
+  }
+
+  function openStockModal() {
+    if (!detail) return;
+    setStockForm({
+      status: "Sesuai",
+      notes: "",
+      observedRoom: detail.location_room || "",
+      observedRack: detail.location_rack || "",
+      observedBox: detail.location_box || "",
+      observedFolder: detail.location_folder || "",
+      observedFileNumber: detail.location_file_number || "",
+      applyLocationUpdate: false
+    });
+    setStockOpen(true);
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase text-brand-700">Manajemen arsip</p>
           <h1 className="mt-1 text-2xl font-bold text-ink">Data Arsip</h1>
-          <p className="mt-1 text-sm text-slate-500">{meta.total || 0} dokumen ditemukan</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {meta.total || 0} dokumen {filters.trash ? "di sampah" : "ditemukan"}
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"
-        >
-          <FilePlus2 size={18} />
-          Tambah Arsip
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => updateFilter("trash", "")}
+            className={`focus-ring inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-semibold ${
+              !filters.trash ? "border-brand-200 bg-brand-50 text-brand-700" : "border-slate-200 bg-white text-slate-600"
+            }`}
+          >
+            Arsip Aktif
+          </button>
+          <button
+            type="button"
+            onClick={() => updateFilter("trash", "1")}
+            className={`focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border px-4 text-sm font-semibold ${
+              filters.trash ? "border-slate-300 bg-slate-100 text-slate-700" : "border-slate-200 bg-white text-slate-600"
+            }`}
+          >
+            <Trash2 size={16} />
+            Sampah
+          </button>
+          {!filters.trash ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setImportOpen(true)}
+                className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <Upload size={16} />
+                Import CSV/Excel
+              </button>
+              <button
+                type="button"
+                onClick={openCreate}
+                className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"
+              >
+                <FilePlus2 size={18} />
+                Tambah Arsip
+              </button>
+            </>
+          ) : null}
+        </div>
       </div>
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
@@ -449,6 +684,7 @@ export default function ArchivesPage() {
                     <td className="max-w-sm px-4 py-3">
                       <p className="font-semibold text-ink">{archive.title}</p>
                       <p className="mt-1 text-xs text-slate-500">{archive.document_number} | {archive.year}</p>
+                      <p className="mt-1 text-xs text-slate-400">{formatPhysicalLocation(archive)}</p>
                     </td>
                     <td className="px-4 py-3 text-slate-600">{archive.unit_name}</td>
                     <td className="px-4 py-3 text-slate-600">{archive.document_type}</td>
@@ -465,15 +701,15 @@ export default function ArchivesPage() {
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
                         {mayView ? <IconButton label="Lihat" onClick={() => openDetail(archive.id)} icon={Eye} /> : null}
-                        {mayEdit ? <IconButton label="Edit" onClick={() => openEdit(archive)} icon={Pencil} /> : null}
-                        {mayDownload ? (
+                        {archive.deleted_at ? null : mayEdit ? <IconButton label="Edit" onClick={() => openEdit(archive)} icon={Pencil} /> : null}
+                        {!archive.deleted_at && mayDownload ? (
                           <IconButton
                             label="Download"
                             onClick={() => downloadFromApi(`/archives/${archive.id}/download`, `arsip-${archive.id}.${archive.file_type?.toLowerCase() || "txt"}`)}
                             icon={Download}
                           />
                         ) : null}
-                        {mayUpdateStatus ? (
+                        {!archive.deleted_at && mayUpdateStatus ? (
                           <IconButton
                             label="Verifikasi"
                             onClick={() => {
@@ -484,9 +720,13 @@ export default function ArchivesPage() {
                             icon={ShieldCheck}
                           />
                         ) : null}
-                        {mayDelete ? <IconButton label="Hapus" onClick={() => deleteArchive(archive)} icon={Trash2} danger /> : null}
+                        {archive.deleted_at ? (
+                          mayDelete ? <IconButton label="Restore" onClick={() => restoreArchive(archive)} icon={RotateCcw} /> : null
+                        ) : mayDelete ? (
+                          <IconButton label="Hapus" onClick={() => deleteArchive(archive)} icon={Trash2} danger />
+                        ) : null}
                         {/* Loan Request button for users without access */}
-                        {!mayView && !mayDownload ? (
+                        {!archive.deleted_at && !mayView && !mayDownload ? (
                           <div className="flex items-center gap-1.5">
                             {archive.loan_status === "Menunggu Persetujuan" ? (
                               <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
@@ -568,6 +808,112 @@ export default function ArchivesPage() {
         />
       </Modal>
 
+      <Modal title="Import Arsip Massal CSV/Excel" open={importOpen} onClose={() => setImportOpen(false)}>
+        <form onSubmit={submitImportSpreadsheet} className="space-y-4">
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+            <p className="font-semibold text-slate-700">Kolom penting minimal</p>
+            <p className="mt-1 text-xs text-slate-500">Gunakan header: <code>title, document_number, document_type, unit_id</code>. File bisa berupa CSV, XLS, atau XLSX.</p>
+            <button
+              type="button"
+              onClick={downloadImportTemplate}
+              className="mt-3 inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <Download size={14} />
+              Unduh Template CSV
+            </button>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">File Import</span>
+            <input
+              type="file"
+              accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              onChange={(event) => {
+                setImportFile(event.target.files?.[0] || null);
+                setImportPreview(null);
+              }}
+              className="focus-ring block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
+              required
+            />
+          </label>
+          {importPreview ? (
+            <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-md bg-slate-50 px-3 py-2 text-sm">
+                  <p className="text-xs font-semibold uppercase text-slate-500">Total Baris</p>
+                  <p className="mt-1 font-bold text-ink">{importPreview.summary.totalRows}</p>
+                </div>
+                <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm">
+                  <p className="text-xs font-semibold uppercase text-emerald-600">Valid</p>
+                  <p className="mt-1 font-bold text-emerald-700">{importPreview.summary.validRows}</p>
+                </div>
+                <div className="rounded-md bg-red-50 px-3 py-2 text-sm">
+                  <p className="text-xs font-semibold uppercase text-red-600">Bermasalah</p>
+                  <p className="mt-1 font-bold text-red-700">{importPreview.summary.invalidRows}</p>
+                </div>
+              </div>
+              <div className="overflow-x-auto rounded-md border border-slate-200">
+                <table className="min-w-full divide-y divide-slate-200 text-xs">
+                  <thead className="bg-slate-50 text-left uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Baris</th>
+                      <th className="px-3 py-2">Nomor</th>
+                      <th className="px-3 py-2">Judul</th>
+                      <th className="px-3 py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {importPreview.preview.slice(0, 10).map((row) => (
+                      <tr key={row.rowNumber}>
+                        <td className="px-3 py-2 text-slate-500">{row.rowNumber}</td>
+                        <td className="px-3 py-2 text-slate-700">{row.normalized?.documentNumber || row.raw?.document_number || "-"}</td>
+                        <td className="px-3 py-2 text-slate-700">{row.normalized?.title || row.raw?.title || "-"}</td>
+                        <td className="px-3 py-2">
+                          {row.errors.length === 0 ? (
+                            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">Siap impor</span>
+                          ) : (
+                            <span className="inline-flex rounded-md bg-red-100 px-2 py-0.5 font-semibold text-red-700">{row.errors.join("; ")}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {importPreview.summary.invalidRows > 0 ? (
+                <p className="text-xs text-red-600">Masih ada baris bermasalah. Perbaiki file lalu unggah ulang untuk melanjutkan.</p>
+              ) : (
+                <p className="text-xs text-emerald-600">Preview valid. Anda bisa lanjut ke proses import penuh.</p>
+              )}
+            </div>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setImportOpen(false);
+                setImportFile(null);
+                setImportPreview(null);
+              }}
+              className="focus-ring rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              disabled={importing || !importFile || (importPreview && importPreview.summary.invalidRows > 0)}
+              className="focus-ring inline-flex items-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+            >
+              <Upload size={15} />
+              {importing
+                ? "Memproses..."
+                : importPreview
+                  ? "Konfirmasi Import"
+                  : "Preview Import"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       <Modal title="Detail arsip" open={detailOpen} onClose={() => setDetailOpen(false)} wide>
         {detail ? (
           <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
@@ -580,6 +926,26 @@ export default function ArchivesPage() {
                 <h2 className="mt-3 text-xl font-bold text-ink">{detail.title}</h2>
                 <p className="mt-1 text-sm text-slate-500">{detail.document_number}</p>
               </div>
+              {!detail.deleted_at && canEditArchive(user, detail) ? (
+                <div className="flex flex-wrap gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <button
+                    type="button"
+                    onClick={openLocationModal}
+                    className="focus-ring inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    <MapPin size={15} />
+                    Pindahkan Lokasi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openStockModal}
+                    className="focus-ring inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    <ShieldCheck size={15} />
+                    Catat Stock Opname
+                  </button>
+                </div>
+              ) : null}
               <dl className="grid gap-3 rounded-md border border-slate-200 p-4 text-sm sm:grid-cols-2">
                 <Info label="Divisi" value={detail.unit_name} />
                 <Info label="Jenis" value={detail.document_type} />
@@ -588,7 +954,9 @@ export default function ArchivesPage() {
                 <Info label="Tingkat Keamanan" value={detail.security_level || "Biasa"} />
                 <Info label="Nomor Surat" value={detail.letter_number || "-"} />
                 <Info label="Tanggal Arsip" value={detail.archive_date ? new Date(detail.archive_date).toLocaleDateString("id-ID") : "-"} />
+                <Info label="Lokasi Fisik" value={formatPhysicalLocation(detail)} />
                 <Info label="Nomor BA Penyusutan" value={detail.disposal_ba_number || "-"} />
+                <Info label="Draft BA Penyusutan" value={detail.pending_disposal_ba_number || "-"} />
                 <Info label="Nomor BA Pemusnahan" value={detail.destruction_ba_number || "-"} />
                 <Info label="Masa Retensi" value={`${detail.active_retention || 0} Thn Aktif / ${detail.inactive_retention || 0} Thn Inaktif`} />
                 <Info label="Status Siklus Hidup" value={detail.lifecycle_status || "Aktif"} />
@@ -598,35 +966,149 @@ export default function ArchivesPage() {
               </dl>
 
               {/* Info Peminjaman (loan date & deadline) */}
-              {detail.loan && detail.loan.status === "Disetujui" && (
-                <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4">
+              {detail.loan && ["Disetujui", "Dikembalikan"].includes(detail.loan.status) && (
+                <div
+                  className={`rounded-md border p-4 ${
+                    detail.loan.status === "Dikembalikan"
+                      ? "border-sky-200 bg-sky-50"
+                      : "border-emerald-200 bg-emerald-50"
+                  }`}
+                >
                   <div className="flex items-center gap-2 mb-3">
-                    <CalendarClock size={16} className="text-emerald-600" />
-                    <span className="text-sm font-bold text-emerald-700">Informasi Peminjaman</span>
+                    <CalendarClock
+                      size={16}
+                      className={detail.loan.status === "Dikembalikan" ? "text-sky-600" : "text-emerald-600"}
+                    />
+                    <span
+                      className={`text-sm font-bold ${
+                        detail.loan.status === "Dikembalikan" ? "text-sky-700" : "text-emerald-700"
+                      }`}
+                    >
+                      {detail.loan.status === "Dikembalikan" ? "Riwayat Peminjaman" : "Informasi Peminjaman"}
+                    </span>
                   </div>
                   <div className="grid gap-2 text-sm sm:grid-cols-2">
                     <div>
-                      <span className="block text-xs font-semibold uppercase text-emerald-600">Tanggal Peminjaman</span>
-                      <span className="mt-0.5 block text-emerald-800 font-medium">
-                        {detail.loan.loan_date ? new Date(detail.loan.loan_date).toLocaleDateString("id-ID", { dateStyle: "long" }) : "-"}
+                      <span className={`block text-xs font-semibold uppercase ${detail.loan.status === "Dikembalikan" ? "text-sky-600" : "text-emerald-600"}`}>Tanggal Peminjaman</span>
+                      <span className={`mt-0.5 block font-medium ${detail.loan.status === "Dikembalikan" ? "text-sky-800" : "text-emerald-800"}`}>
+                        {formatLongDate(detail.loan.loan_date)}
                       </span>
                     </div>
                     <div>
-                      <span className="block text-xs font-semibold uppercase text-emerald-600">Batas Peminjaman</span>
+                      <span className={`block text-xs font-semibold uppercase ${detail.loan.status === "Dikembalikan" ? "text-sky-600" : "text-emerald-600"}`}>Batas Peminjaman</span>
                       <span className={`mt-0.5 block font-medium ${
-                        detail.loan.loan_deadline && new Date(detail.loan.loan_deadline) < new Date()
+                        detail.loan.status === "Disetujui" && isPastDate(detail.loan.loan_deadline)
                           ? "text-red-600"
-                          : "text-emerald-800"
+                          : detail.loan.status === "Dikembalikan"
+                            ? "text-sky-800"
+                            : "text-emerald-800"
                       }`}>
-                        {detail.loan.loan_deadline ? new Date(detail.loan.loan_deadline).toLocaleDateString("id-ID", { dateStyle: "long" }) : "-"}
-                        {detail.loan.loan_deadline && new Date(detail.loan.loan_deadline) < new Date() && (
+                        {formatLongDate(detail.loan.loan_deadline)}
+                        {detail.loan.status === "Disetujui" && isPastDate(detail.loan.loan_deadline) && (
                           <span className="ml-1 text-xs text-red-500 font-semibold">(Sudah lewat)</span>
                         )}
                       </span>
                     </div>
+                    {detail.loan.status === "Dikembalikan" ? (
+                      <>
+                        <div>
+                          <span className="block text-xs font-semibold uppercase text-sky-600">Dikembalikan Pada</span>
+                          <span className="mt-0.5 block text-sky-800 font-medium">
+                            {detail.loan.returned_at ? formatDateTime(detail.loan.returned_at) : "-"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="block text-xs font-semibold uppercase text-sky-600">Dikembalikan Oleh</span>
+                          <span className="mt-0.5 block text-sky-800 font-medium">
+                            {detail.loan.returned_by_name || "-"}
+                          </span>
+                        </div>
+                      </>
+                    ) : null}
                   </div>
+                  {detail.loan.return_notes ? (
+                    <div className={`mt-3 rounded-md border px-3 py-2 text-sm ${
+                      detail.loan.status === "Dikembalikan"
+                        ? "border-sky-200 bg-white/70 text-sky-800"
+                        : "border-emerald-200 bg-white/70 text-emerald-800"
+                    }`}>
+                      <span className="font-semibold">Catatan:</span> {detail.loan.return_notes}
+                    </div>
+                  ) : null}
+                  {detail.loan.extension_id ? (
+                    <div className={`mt-3 rounded-md border px-3 py-2 text-sm ${
+                      detail.loan.status === "Dikembalikan"
+                        ? "border-sky-200 bg-white/70 text-sky-800"
+                        : "border-emerald-200 bg-white/70 text-emerald-800"
+                    }`}>
+                      <span className="font-semibold">Perpanjangan terakhir:</span>{" "}
+                      {detail.loan.extension_status === "Menunggu Persetujuan"
+                        ? `menunggu persetujuan sampai ${formatLongDate(detail.loan.extension_requested_deadline)}`
+                        : detail.loan.extension_status === "Disetujui"
+                          ? `disetujui sampai ${formatLongDate(detail.loan.extension_requested_deadline)}`
+                          : `ditolak${detail.loan.extension_reviewed_by_name ? ` oleh ${detail.loan.extension_reviewed_by_name}` : ""}`}
+                    </div>
+                  ) : null}
                 </div>
               )}
+
+              <div className="rounded-md border border-slate-200 bg-white">
+                <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-ink">
+                  Riwayat Peminjaman Arsip
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {detail.loanHistory?.map((loanItem) => (
+                    <div key={loanItem.id} className="px-4 py-3 text-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusBadge status={loanItem.status} />
+                        <span className="font-semibold text-slate-700">{loanItem.requester_name}</span>
+                        <span className="text-xs text-slate-400">{loanItem.requester_role}</span>
+                      </div>
+                      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <p className="text-xs font-semibold uppercase text-slate-500">Periode Pinjam</p>
+                          <p className="mt-1 text-slate-700">
+                            {formatLongDate(loanItem.loan_date)} - {formatLongDate(loanItem.loan_deadline)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold uppercase text-slate-500">Hasil Akhir</p>
+                          <p className="mt-1 text-slate-700">
+                            {loanItem.status === "Dikembalikan"
+                              ? `Dikembalikan${loanItem.returned_by_name ? ` oleh ${loanItem.returned_by_name}` : ""}`
+                              : loanItem.status === "Disetujui"
+                                ? `Masih aktif${loanItem.approved_by_name ? `, disetujui oleh ${loanItem.approved_by_name}` : ""}`
+                                : loanItem.status === "Ditolak"
+                                  ? `Ditolak${loanItem.approved_by_name ? ` oleh ${loanItem.approved_by_name}` : ""}`
+                                  : "Menunggu persetujuan"}
+                          </p>
+                        </div>
+                      </div>
+                      {loanItem.extension_count > 0 ? (
+                        <p className="mt-2 text-xs text-slate-500">
+                          Perpanjangan: {loanItem.extension_count} kali
+                          {loanItem.extension_status ? `, status terakhir ${loanItem.extension_status.toLowerCase()}` : ""}
+                          {loanItem.extension_requested_deadline ? ` sampai ${formatLongDate(loanItem.extension_requested_deadline)}` : ""}
+                        </p>
+                      ) : null}
+                      {loanItem.notes ? <p className="mt-2 text-xs text-slate-500">Catatan approval: {loanItem.notes}</p> : null}
+                      {loanItem.return_notes ? <p className="mt-1 text-xs text-slate-500">Catatan pengembalian: {loanItem.return_notes}</p> : null}
+                      <p className="mt-2 text-xs text-slate-400">Dibuat {formatDateTime(loanItem.created_at)}</p>
+                    </div>
+                  ))}
+                  {detail.loanHistory?.length === 0 ? (
+                    <div className="px-4 py-5 text-sm text-slate-500">Belum ada riwayat peminjaman untuk arsip ini.</div>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Rahasia warning */}
+              {detail.deleted_at ? (
+                <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  <Trash2 size={15} />
+                  <span className="font-semibold">Arsip ini sedang berada di sampah dan belum dipulihkan.</span>
+                </div>
+              ) : null}
 
               {/* Rahasia warning */}
               {detail.security_level === "Rahasia" && (
@@ -637,10 +1119,10 @@ export default function ArchivesPage() {
               )}
 
               {/* Berita Acara Downloads */}
-              {(detail.disposal_doc_path || detail.destruction_doc_path) && (
+              {(detail.disposal_doc_path || detail.pending_disposal_doc_path || detail.destruction_doc_path) && (
                 <div className="flex flex-wrap gap-2 rounded-md border border-slate-200 bg-slate-50/50 p-3 text-xs">
                   <span className="font-bold text-slate-500 w-full mb-1">Berita Acara Pendukung:</span>
-                  {detail.disposal_doc_path && (
+                  {(detail.disposal_doc_path || detail.pending_disposal_doc_path) && (
                     <button
                       type="button"
                       onClick={() =>
@@ -676,7 +1158,7 @@ export default function ArchivesPage() {
                     <p className="text-xs font-semibold uppercase text-slate-500">File arsip</p>
                     <p className="mt-1 text-sm font-semibold text-ink">{detail.file_original_name || `arsip-${detail.id}`}</p>
                   </div>
-                  {detail.security_level !== "Rahasia" && (
+                  {!detail.deleted_at && detail.security_level !== "Rahasia" && (
                     <button
                       type="button"
                       onClick={() =>
@@ -766,24 +1248,99 @@ export default function ArchivesPage() {
             </div>
 
             <div className="space-y-4">
-              <form onSubmit={submitComment} className="rounded-md border border-slate-200 p-4">
-                <label className="text-sm font-semibold text-ink">
-                  Komentar
-                  <textarea
-                    value={comment}
-                    onChange={(event) => setComment(event.target.value)}
-                    className="focus-ring mt-2 min-h-24 w-full rounded-md border border-slate-200 p-3 text-sm"
-                    placeholder="Tulis komentar arsip"
-                  />
-                </label>
-                <button
-                  type="submit"
-                  className="focus-ring mt-3 inline-flex items-center gap-2 rounded-md bg-brand-600 px-3 py-2 text-sm font-semibold text-white"
-                >
-                  <MessageSquarePlus size={17} />
-                  Simpan Komentar
-                </button>
-              </form>
+              {!detail.deleted_at ? (
+                <form onSubmit={submitComment} className="rounded-md border border-slate-200 p-4">
+                  <label className="text-sm font-semibold text-ink">
+                    Komentar
+                    <textarea
+                      value={comment}
+                      onChange={(event) => setComment(event.target.value)}
+                      className="focus-ring mt-2 min-h-24 w-full rounded-md border border-slate-200 p-3 text-sm"
+                      placeholder="Tulis komentar arsip"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="focus-ring mt-3 inline-flex items-center gap-2 rounded-md bg-brand-600 px-3 py-2 text-sm font-semibold text-white"
+                  >
+                    <MessageSquarePlus size={17} />
+                    Simpan Komentar
+                  </button>
+                </form>
+              ) : (
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                  Komentar dinonaktifkan untuk arsip yang sedang berada di sampah.
+                </div>
+              )}
+
+              <div className="rounded-md border border-slate-200">
+                <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-ink">Log akses arsip</div>
+                <div className="divide-y divide-slate-100">
+                  {detail.accessLogs?.map((item) => (
+                    <div key={item.id} className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                          {item.action}
+                        </span>
+                        <span className="text-xs text-slate-400">{formatDateTime(item.created_at)}</span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-700">{item.user_name || "Sistem"}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{item.user_role || item.entity}</p>
+                    </div>
+                  ))}
+                  {detail.accessLogs?.length === 0 ? <div className="px-4 py-5 text-sm text-slate-500">Belum ada log akses.</div> : null}
+                </div>
+              </div>
+
+              <div className="rounded-md border border-slate-200">
+                <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-ink">Riwayat perpindahan lokasi</div>
+                <div className="divide-y divide-slate-100">
+                  {detail.locationLogs?.map((item) => (
+                    <div key={item.id} className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                          Pindah lokasi
+                        </span>
+                        <span className="text-xs text-slate-400">{formatDateTime(item.created_at)}</span>
+                      </div>
+                      <p className="mt-2 text-xs font-semibold uppercase text-slate-500">Dari</p>
+                      <p className="mt-1 text-sm text-slate-700">{formatLocationLog(item, "old")}</p>
+                      <p className="mt-2 text-xs font-semibold uppercase text-slate-500">Ke</p>
+                      <p className="mt-1 text-sm text-slate-700">{formatLocationLog(item, "new")}</p>
+                      {item.notes ? <p className="mt-2 text-xs text-slate-500">{item.notes}</p> : null}
+                      <p className="mt-1 text-xs text-slate-400">{item.moved_by_name || "Sistem"} | {item.moved_by_role || "-"}</p>
+                    </div>
+                  ))}
+                  {detail.locationLogs?.length === 0 ? <div className="px-4 py-5 text-sm text-slate-500">Belum ada riwayat perpindahan lokasi.</div> : null}
+                </div>
+              </div>
+
+              <div className="rounded-md border border-slate-200">
+                <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-ink">Riwayat stock opname</div>
+                <div className="divide-y divide-slate-100">
+                  {detail.stockOpnames?.map((item) => (
+                    <div key={item.id} className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusBadge status={item.status} />
+                        <span className="text-xs text-slate-400">{formatDateTime(item.created_at)}</span>
+                      </div>
+                      <p className="mt-2 text-xs font-semibold uppercase text-slate-500">Lokasi teramati</p>
+                      <p className="mt-1 text-sm text-slate-700">
+                        {formatLocationValues([
+                          item.observed_room,
+                          item.observed_rack,
+                          item.observed_box,
+                          item.observed_folder,
+                          item.observed_file_number
+                        ])}
+                      </p>
+                      {item.notes ? <p className="mt-2 text-xs text-slate-500">{item.notes}</p> : null}
+                      <p className="mt-1 text-xs text-slate-400">{item.checked_by_name || "Sistem"} | {item.checked_by_role || "-"}</p>
+                    </div>
+                  ))}
+                  {detail.stockOpnames?.length === 0 ? <div className="px-4 py-5 text-sm text-slate-500">Belum ada catatan stock opname.</div> : null}
+                </div>
+              </div>
 
               <div className="rounded-md border border-slate-200">
                 <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-ink">Komentar arsip</div>
@@ -825,6 +1382,142 @@ export default function ArchivesPage() {
           <button type="submit" className="focus-ring inline-flex items-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white">
             <ShieldCheck size={17} />
             Simpan Verifikasi
+          </button>
+        </form>
+      </Modal>
+
+      <Modal title="Pindahkan Lokasi Arsip" open={locationOpen} onClose={() => setLocationOpen(false)}>
+        <form onSubmit={submitLocationMove} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Ruangan</span>
+              <input
+                value={locationForm.locationRoom}
+                onChange={(event) => setLocationForm((current) => ({ ...current, locationRoom: event.target.value }))}
+                className="focus-ring h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Rak</span>
+              <input
+                value={locationForm.locationRack}
+                onChange={(event) => setLocationForm((current) => ({ ...current, locationRack: event.target.value }))}
+                className="focus-ring h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Box</span>
+              <input
+                value={locationForm.locationBox}
+                onChange={(event) => setLocationForm((current) => ({ ...current, locationBox: event.target.value }))}
+                className="focus-ring h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Map</span>
+              <input
+                value={locationForm.locationFolder}
+                onChange={(event) => setLocationForm((current) => ({ ...current, locationFolder: event.target.value }))}
+                className="focus-ring h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+              />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Nomor Berkas</span>
+              <input
+                value={locationForm.locationFileNumber}
+                onChange={(event) => setLocationForm((current) => ({ ...current, locationFileNumber: event.target.value }))}
+                className="focus-ring h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+              />
+            </label>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Catatan</span>
+            <textarea
+              value={locationForm.notes}
+              onChange={(event) => setLocationForm((current) => ({ ...current, notes: event.target.value }))}
+              className="focus-ring min-h-24 w-full rounded-md border border-slate-200 p-3 text-sm"
+              placeholder="Catatan perpindahan lokasi"
+            />
+          </label>
+          <button type="submit" disabled={movingLocation} className="focus-ring inline-flex items-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+            <MapPin size={16} />
+            {movingLocation ? "Menyimpan..." : "Simpan Lokasi"}
+          </button>
+        </form>
+      </Modal>
+
+      <Modal title="Catat Stock Opname" open={stockOpen} onClose={() => setStockOpen(false)}>
+        <form onSubmit={submitStockOpname} className="space-y-4">
+          <FilterSelect label="Status Pemeriksaan" value={stockForm.status} onChange={(value) => setStockForm((current) => ({ ...current, status: value }))}>
+            {["Sesuai", "Tidak Sesuai Lokasi", "Tidak Ditemukan", "Rusak"].map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </FilterSelect>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Ruangan Terlihat</span>
+              <input
+                value={stockForm.observedRoom}
+                onChange={(event) => setStockForm((current) => ({ ...current, observedRoom: event.target.value }))}
+                className="focus-ring h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Rak Terlihat</span>
+              <input
+                value={stockForm.observedRack}
+                onChange={(event) => setStockForm((current) => ({ ...current, observedRack: event.target.value }))}
+                className="focus-ring h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Box Terlihat</span>
+              <input
+                value={stockForm.observedBox}
+                onChange={(event) => setStockForm((current) => ({ ...current, observedBox: event.target.value }))}
+                className="focus-ring h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Map Terlihat</span>
+              <input
+                value={stockForm.observedFolder}
+                onChange={(event) => setStockForm((current) => ({ ...current, observedFolder: event.target.value }))}
+                className="focus-ring h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+              />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Nomor Berkas Terlihat</span>
+              <input
+                value={stockForm.observedFileNumber}
+                onChange={(event) => setStockForm((current) => ({ ...current, observedFileNumber: event.target.value }))}
+                className="focus-ring h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+              />
+            </label>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Catatan</span>
+            <textarea
+              value={stockForm.notes}
+              onChange={(event) => setStockForm((current) => ({ ...current, notes: event.target.value }))}
+              className="focus-ring min-h-24 w-full rounded-md border border-slate-200 p-3 text-sm"
+              placeholder="Catatan hasil pemeriksaan fisik"
+            />
+          </label>
+          <label className="flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={stockForm.applyLocationUpdate}
+              onChange={(event) => setStockForm((current) => ({ ...current, applyLocationUpdate: event.target.checked }))}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600"
+            />
+            <span>Perbarui lokasi fisik arsip berdasarkan lokasi yang ditemukan pada stock opname ini.</span>
+          </label>
+          <button type="submit" disabled={stocking} className="focus-ring inline-flex items-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+            <ShieldCheck size={16} />
+            {stocking ? "Menyimpan..." : "Simpan Stock Opname"}
           </button>
         </form>
       </Modal>
@@ -1077,6 +1770,19 @@ function ArchiveForm({ form, setForm, units, submitting, onSubmit, user }) {
       </FilterSelect>
       <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600 md:col-span-2">
         {ARCHIVE_CATEGORIES.find((category) => category.value === form.archiveCategory)?.description}
+      </div>
+      <div className="md:col-span-2">
+        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
+          <MapPin size={14} />
+          Lokasi Fisik Arsip
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <TextInput label="Ruangan" value={form.locationRoom} onChange={(value) => setForm((current) => ({ ...current, locationRoom: value }))} />
+          <TextInput label="Rak" value={form.locationRack} onChange={(value) => setForm((current) => ({ ...current, locationRack: value }))} />
+          <TextInput label="Box" value={form.locationBox} onChange={(value) => setForm((current) => ({ ...current, locationBox: value }))} />
+          <TextInput label="Map" value={form.locationFolder} onChange={(value) => setForm((current) => ({ ...current, locationFolder: value }))} />
+          <TextInput label="Nomor Berkas" value={form.locationFileNumber} onChange={(value) => setForm((current) => ({ ...current, locationFileNumber: value }))} />
+        </div>
       </div>
       <FilterSelect label="Status" value={form.status} onChange={(value) => setForm((current) => ({ ...current, status: value }))}>
         {ARCHIVE_STATUSES.map((status) => (

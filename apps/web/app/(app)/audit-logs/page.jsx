@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Search, ShieldAlert } from "lucide-react";
-import { apiFetch, buildQuery } from "../../../lib/api";
-import { canAccessGlobal } from "../../../lib/constants";
+import { Download, Search, ShieldAlert, ShieldCheck } from "lucide-react";
+import { apiFetch, buildQuery, downloadFromApi } from "../../../lib/api";
 import { formatDateTime } from "../../../lib/format";
 import { useAuth } from "../../../components/AuthProvider";
 import { EmptyState } from "../../../components/EmptyState";
@@ -14,31 +13,36 @@ export default function AuditLogsPage() {
   const [logs, setLogs] = useState([]);
   const [meta, setMeta] = useState({ page: 1, limit: 10, total: 0 });
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState("");
+  const [integrity, setIntegrity] = useState(null);
+  const canViewAudit = ["Admin", "Inspektur"].includes(user?.role);
 
   const loadLogs = useCallback(async () => {
-    if (!canAccessGlobal(user?.role)) return;
+    if (!canViewAudit) return;
     setError("");
     try {
       const result = await apiFetch(`/audit-logs${buildQuery({ search, page: meta.page, limit: 10 })}`);
       setLogs(result.data);
       setMeta(result.meta);
+      const integrityResult = await apiFetch("/audit-logs/integrity");
+      setIntegrity(integrityResult.data);
     } catch (err) {
       setError(err.message);
     }
-  }, [search, meta.page, user?.role]);
+  }, [search, meta.page, canViewAudit]);
 
   useEffect(() => {
     loadLogs();
   }, [loadLogs]);
 
-  if (!canAccessGlobal(user?.role)) {
+  if (!canViewAudit) {
     return (
       <div className="rounded-md border border-amber-200 bg-amber-50 p-5 text-amber-800">
         <div className="flex items-center gap-3">
           <ShieldAlert size={22} />
           <div>
             <h1 className="text-base font-semibold">Akses terbatas</h1>
-            <p className="mt-1 text-sm">Audit log hanya tersedia untuk Admin, Inspektur, dan Sekretaris.</p>
+            <p className="mt-1 text-sm">Audit log hanya tersedia untuk Admin dan Inspektur.</p>
           </div>
         </div>
       </div>
@@ -47,13 +51,63 @@ export default function AuditLogsPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <p className="text-sm font-semibold uppercase text-brand-700">Audit log</p>
-        <h1 className="mt-1 text-2xl font-bold text-ink">Aktivitas User</h1>
-        <p className="mt-1 text-sm text-slate-500">{meta.total || 0} aktivitas tercatat</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase text-brand-700">Audit log</p>
+          <h1 className="mt-1 text-2xl font-bold text-ink">Aktivitas User</h1>
+          <p className="mt-1 text-sm text-slate-500">{meta.total || 0} aktivitas tercatat</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={exporting === "csv"}
+            onClick={async () => {
+              setExporting("csv");
+              try {
+                await downloadFromApi(`/audit-logs/export${buildQuery({ search, format: "csv" })}`, `audit-log-${new Date().toISOString().slice(0, 10)}.csv`);
+              } catch (err) {
+                setError(err.message);
+              } finally {
+                setExporting("");
+              }
+            }}
+            className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            <Download size={16} />
+            {exporting === "csv" ? "Mengekspor CSV..." : "Export CSV"}
+          </button>
+          <button
+            type="button"
+            disabled={exporting === "json"}
+            onClick={async () => {
+              setExporting("json");
+              try {
+                await downloadFromApi(`/audit-logs/export${buildQuery({ search, format: "json" })}`, `audit-log-${new Date().toISOString().slice(0, 10)}.json`);
+              } catch (err) {
+                setError(err.message);
+              } finally {
+                setExporting("");
+              }
+            }}
+            className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            <Download size={16} />
+            {exporting === "json" ? "Mengekspor JSON..." : "Export JSON"}
+          </button>
+        </div>
       </div>
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+
+      {integrity ? (
+        <div className={`flex items-center gap-3 rounded-md border px-4 py-3 text-sm ${!integrity.valid ? "border-red-300 bg-red-50 text-red-800" : integrity.protected && !integrity.legacyUnsigned ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-300 bg-amber-50 text-amber-800"}`}>
+          {integrity.valid && integrity.protected ? <ShieldCheck size={20} /> : <ShieldAlert size={20} />}
+          <div>
+            <p className="font-semibold">{!integrity.valid ? "Integritas audit bermasalah" : !integrity.protected ? "Audit lama belum memiliki perlindungan hash" : integrity.legacyUnsigned ? "Rantai audit baru valid; entri lama belum terlindungi" : "Rantai audit valid"}</p>
+            <p className="text-xs">{integrity.signed || 0} entri ditandatangani · {integrity.legacyUnsigned || 0} entri lama belum ditandatangani{integrity.brokenAtId ? ` · putus pada ID ${integrity.brokenAtId}` : ""}</p>
+          </div>
+        </div>
+      ) : null}
 
       <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
         <label className="block">

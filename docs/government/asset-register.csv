@@ -1,0 +1,5 @@
+asset_id,asset_name,asset_type,environment,owner,technical_owner,data_classification,location,public_exposure,criticality,rto,rpo,backup,monitoring,last_review,status
+AST-001,SIPADI Web,Aplikasi,production,[isi],[isi],Publik,[isi],Ya,High,[isi],[isi],N/A,[isi],[isi],planned
+AST-002,SIPADI API,Aplikasi,production,[isi],[isi],Rahasia,[isi],Via WAF,Very High,[isi],[isi],Configuration,[isi],[isi],planned
+AST-003,SIPADI PostgreSQL,Database,production,[isi],[isi],Rahasia,[isi],Tidak,Very High,[isi],[isi],Encrypted immutable,[isi],[isi],planned
+AST-004,Penyimpanan Arsip,Object storage,production,[isi],[isi],Rahasia,[isi],Tidak,Very High,[isi],[isi],Versioned immutable,[isi],[isi],planned

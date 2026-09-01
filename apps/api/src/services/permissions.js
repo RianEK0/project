@@ -20,6 +20,10 @@ export function canViewArchive(user, archive, hasApprovedLoan = false) {
   return hasApprovedLoan;
 }
 
+export function canAccessAllArchives(user) {
+  return GLOBAL_ARCHIVE_ROLES.has(user?.role);
+}
+
 export function canDownloadArchive(user, archive, hasApprovedLoan = false) {
   // Dokumen Rahasia tidak boleh diunduh, hanya view-only
   if (archive?.security_level === "Rahasia") return false;

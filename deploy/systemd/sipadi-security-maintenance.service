@@ -1,0 +1,13 @@
+[Unit]
+Description=SIPADI weekly security checks
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=sipadi
+Group=sipadi
+WorkingDirectory=/opt/sipadi
+Environment=SIPADI_PROJECT_DIR=/opt/sipadi
+ExecStart=/bin/sh /opt/sipadi/deploy/security-maintenance.sh
+NoNewPrivileges=true
+PrivateTmp=true

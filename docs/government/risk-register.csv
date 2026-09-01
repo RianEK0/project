@@ -1,0 +1,7 @@
+risk_id,asset,scenario,threat,vulnerability,likelihood,impact,inherent_risk,controls,residual_risk,treatment,owner,due_date,status,approver,evidence
+RSK-001,Akun istimewa,Account takeover,Phishing,Passkey belum didaftarkan,High,Very High,Critical,Passkey wajib dan IAP,[isi],Mitigate,[isi],[isi],open,[isi],[isi]
+RSK-002,Arsip,Data leakage,Insider/BOLA,Kesalahan scope role/unit,Medium,Very High,High,RBAC server-side dan VAPT,[isi],Mitigate,[isi],[isi],open,[isi],[isi]
+RSK-003,Layanan,Data loss,Ransomware,Backup immutable belum diuji,Medium,Very High,High,Encrypted offsite backup dan restore drill,[isi],Mitigate,[isi],[isi],open,[isi],[isi]
+RSK-004,API,Bypass rate limit,Serangan terdistribusi/scale-out,State pengamanan tidak konsisten antar-instance,Medium,High,High,Redis/Valkey state terdistribusi dan WAF rate limit,[isi],Mitigate,[isi],[isi],open,[isi],Uji dua instance dan failover
+RSK-005,Object storage,Kebocoran dokumen,Miskonfigurasi bucket/IAM,Akses publik atau hak workload berlebihan,Medium,Very High,High,Public Access Block + versioning + SSE-KMS + client-side AES-GCM,[isi],Mitigate,[isi],[isi],open,[isi],Export policy dan uji anonymous deny
+RSK-006,Rantai pasok,Artefak deployment disusupi,Dependency/image compromise,Deployment berdasarkan tag atau image tidak terverifikasi,Medium,Very High,High,Trivy + SBOM + provenance + Cosign digest verification,[isi],Mitigate,[isi],[isi],open,[isi],Artifact digest dan log cosign verify

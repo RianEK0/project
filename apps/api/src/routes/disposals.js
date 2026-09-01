@@ -1,11 +1,15 @@
-import fs from "fs";
 import { Router } from "express";
 import { query } from "../config/db.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, authorize } from "../middleware/auth.js";
+import { requireArchivePermission } from "../middleware/archivePermissions.js";
 import { asyncHandler } from "../utils/http.js";
 import { logActivity } from "../services/audit.js";
+import { enforceDataEgressPolicy } from "../services/dataEgressProtection.js";
 import { createNotification } from "../services/notificationService.js";
-import { archiveUpload, resolveUploadPath } from "../middleware/upload.js";
+import { archiveUpload, encryptUploadedFiles, scanUploadedFiles, validateArchiveFiles } from "../middleware/upload.js";
+import { canEditArchive, canViewArchive } from "../services/permissions.js";
+import { buildArchiveFilters } from "../services/archiveQueries.js";
+import { sendStoredObject, storedObjectExists } from "../services/fileStorage.js";
 
 const router = Router();
 
@@ -16,6 +20,8 @@ const UNIT_ROLES = [
   "Sub Bag Perencanaan", "Sub Bag Keuangan",
   "Irban Wilayah I", "Irban Wilayah II", "Irban Wilayah III", "Irban Wilayah IV", "Irban Wilayah V"
 ];
+const FINAL_DISPOSAL_APPROVER_ROLES = ["Admin", "Inspektur"];
+const DISPOSAL_TARGET_CATEGORIES = ["Arsip Inaktif", "Arsip Statis", "Arsip Musnah"];
 
 
 // GET /api/disposals
@@ -23,6 +29,7 @@ router.get(
   "/",
   authenticate,
   asyncHandler(async (req, res) => {
+    const filters = buildArchiveFilters({ filters: {}, user: req.user });
     // 1. Get archives eligible for disposal (lifecycle_status = 'Aktif' and active retention expired)
     const eligiblePenyusutan = await query(
       `SELECT a.*, ou.name AS unit_name, u.name AS creator_name,
@@ -30,10 +37,11 @@ router.get(
        FROM archives a
        LEFT JOIN organization_units ou ON a.unit_id = ou.id
        LEFT JOIN users u ON a.created_by = u.id
-       WHERE a.lifecycle_status = 'Aktif'
+       ${filters.whereSql} AND a.lifecycle_status = 'Aktif'
          AND a.status = 'Diarsipkan'
          AND CURRENT_DATE >= (a.archive_date + (a.active_retention * INTERVAL '1 year'))
-       ORDER BY a.archive_date ASC`
+      ORDER BY a.archive_date ASC`,
+      filters.values
     );
 
     // 2. Get archives currently in disposal pipeline or already processed
@@ -43,8 +51,9 @@ router.get(
        FROM archives a
        LEFT JOIN organization_units ou ON a.unit_id = ou.id
        LEFT JOIN users u ON a.created_by = u.id
-       WHERE a.lifecycle_status IN ('Usulan Penyusutan', 'Review Penyusutan', 'Disetujui Penyusutan', 'Inaktif', 'Statis')
-       ORDER BY a.updated_at DESC`
+       ${filters.whereSql} AND a.lifecycle_status IN ('Usulan Penyusutan', 'Review Penyusutan', 'Disetujui Penyusutan', 'Inaktif', 'Statis')
+       ORDER BY a.updated_at DESC`,
+      filters.values
     );
 
     // 3. Get archives eligible for destruction (lifecycle_status = 'Inaktif' and inactive retention expired)
@@ -54,10 +63,11 @@ router.get(
        FROM archives a
        LEFT JOIN organization_units ou ON a.unit_id = ou.id
        LEFT JOIN users u ON a.created_by = u.id
-       WHERE a.lifecycle_status = 'Inaktif'
+       ${filters.whereSql} AND a.lifecycle_status = 'Inaktif'
          AND a.status = 'Diarsipkan'
          AND CURRENT_DATE >= (a.archive_date + ((a.active_retention + a.inactive_retention) * INTERVAL '1 year'))
-       ORDER BY a.archive_date ASC`
+       ORDER BY a.archive_date ASC`,
+      filters.values
     );
 
     // 4. Get archives in destruction pipeline or already destroyed
@@ -67,8 +77,9 @@ router.get(
        FROM archives a
        LEFT JOIN organization_units ou ON a.unit_id = ou.id
        LEFT JOIN users u ON a.created_by = u.id
-       WHERE a.lifecycle_status IN ('Usulan Pemusnahan', 'Verifikasi Pemusnahan', 'Disetujui Pemusnahan', 'Musnah')
-       ORDER BY a.updated_at DESC`
+       ${filters.whereSql} AND a.lifecycle_status IN ('Usulan Pemusnahan', 'Verifikasi Pemusnahan', 'Disetujui Pemusnahan', 'Musnah')
+       ORDER BY a.updated_at DESC`,
+      filters.values
     );
 
     // 5. Fetch logs for these archives
@@ -106,13 +117,14 @@ router.get(
 router.post(
   "/:id/propose",
   authenticate,
+  requireArchivePermission(canEditArchive, "Anda tidak dapat mengusulkan penyusutan arsip ini"),
   asyncHandler(async (req, res) => {
     const { notes } = req.body;
     const archiveId = req.params.id;
 
     // Verify archive exists and is in 'Aktif' state
     const archiveCheck = await query(
-      "SELECT id, title, document_number, created_by FROM archives WHERE id = $1",
+      "SELECT id, title, document_number, created_by FROM archives WHERE id = $1 AND lifecycle_status = 'Usulan Penyusutan'",
       [archiveId]
     );
 
@@ -165,7 +177,11 @@ router.post(
 router.post(
   "/:id/review",
   authenticate,
+  authorize(...GLOBAL_ROLES),
   archiveUpload.single("disposal_doc"),
+  validateArchiveFiles,
+  scanUploadedFiles,
+  encryptUploadedFiles,
   asyncHandler(async (req, res) => {
     const { notes, isApproved, targetCategory, baNumber } = req.body; // targetCategory: 'Arsip Inaktif', 'Arsip Statis', 'Arsip Musnah'
     const archiveId = req.params.id;
@@ -190,77 +206,79 @@ router.post(
     const archive = archiveCheck.rows[0];
 
     if (isApprovedVal) {
-      let nextStatus = "Inaktif";
-      let nextCategory = "Arsip Inaktif";
-      let stageText = "Menjadi Arsip Inaktif";
-
-      if (targetCategory === "Arsip Statis") {
-        nextStatus = "Statis";
-        nextCategory = "Arsip Statis";
-        stageText = "Menjadi Arsip Statis";
-      } else if (targetCategory === "Arsip Musnah") {
-        nextStatus = "Usulan Pemusnahan";
-        nextCategory = "Arsip Musnah";
-        stageText = "Diusulkan Musnah";
+      if (!DISPOSAL_TARGET_CATEGORIES.includes(targetCategory)) {
+        return res.status(422).json({ message: "Target akhir penyusutan tidak valid" });
       }
 
-      // Update archives
       await query(
         `UPDATE archives 
-         SET lifecycle_status = $1, 
-             archive_category = $2, 
-             disposal_ba_number = $3,
-             disposal_doc_path = COALESCE($4, disposal_doc_path),
-             updated_at = NOW() 
+         SET lifecycle_status = 'Review Penyusutan',
+             pending_disposal_target = $1,
+             pending_disposal_ba_number = $2,
+             pending_disposal_doc_path = COALESCE($3, pending_disposal_doc_path),
+             disposal_reviewed_by = $4,
+             disposal_reviewed_at = NOW(),
+             disposal_approved_by = NULL,
+             disposal_approved_at = NULL,
+             updated_at = NOW()
          WHERE id = $5`,
-        [nextStatus, nextCategory, baNumber || null, file ? file.filename : null, archiveId]
-      );
-
-      // Add approval logs
-      await query(
-        `INSERT INTO archive_lifecycle_logs (archive_id, stage, officer_id, notes, is_approved)
-         VALUES ($1, 'Disetujui Penyusutan', $2, $3, TRUE)`,
-        [archiveId, req.user.id, `Penyusutan disetujui. No. BA: ${baNumber || "-"}. Tindak lanjut: ${stageText}. Catatan: ${notes || "-"}`]
+        [targetCategory, baNumber || null, file ? file.filename : null, req.user.id, archiveId]
       );
 
       await query(
         `INSERT INTO archive_lifecycle_logs (archive_id, stage, officer_id, notes, is_approved)
-         VALUES ($1, $2, $3, $4, TRUE)`,
-        [archiveId, stageText, req.user.id, `Dipindahkan berdasarkan review penyusutan.`]
+         VALUES ($1, 'Review Penyusutan', $2, $3, TRUE)`,
+        [
+          archiveId,
+          req.user.id,
+          `Review penyusutan selesai. Target akhir: ${targetCategory}. No. BA draft: ${baNumber || "-"}. Catatan: ${notes || "-"}`
+        ]
       );
 
-      // Audit Activity
       await logActivity({
         userId: req.user.id,
-        action: targetCategory === "Arsip Statis" ? "MOVE_STATIC" : "APPROVE_DISPOSAL",
+        action: "REVIEW_DISPOSAL",
         entity: "archive",
         entityId: Number(archiveId),
         metadata: { title: archive.title, documentNumber: archive.document_number, targetCategory, baNumber }
       });
 
-      // Notify creator
+      const finalApproversResult = await query(
+        `SELECT id
+         FROM users
+         WHERE role = ANY($1)
+           AND is_active = TRUE
+           AND id <> $2`,
+        [FINAL_DISPOSAL_APPROVER_ROLES, req.user.id]
+      );
+
       await createNotification({
-        broadcast: true,
-        title: "Penyusutan Disetujui",
-        message: `Usulan penyusutan arsip "${archive.title}" (${archive.document_number}) telah disetujui menjadi ${nextCategory}.`,
-        type: "penyusutan_selesai",
+        userIds: finalApproversResult.rows.map((row) => row.id),
+        title: "Penyusutan Menunggu Persetujuan Akhir",
+        message: `Arsip "${archive.title}" (${archive.document_number}) telah lolos review dan menunggu persetujuan akhir menuju ${targetCategory}.`,
+        type: "penyusutan_menunggu_persetujuan_akhir",
         entityId: archive.id
       });
-
-      if (targetCategory === "Arsip Musnah") {
-        // Broadcast notifikasi pemusnahan menunggu verifikasi
-        await createNotification({
-          broadcast: true,
-          title: "Pemusnahan Menunggu Verifikasi",
-          message: `Arsip "${archive.title}" (${archive.document_number}) disetujui musnah dan menunggu verifikasi.`,
-          type: "menunggu_verifikasi_pemusnahan",
-          entityId: archive.id
-        });
-      }
     } else {
-      // Reject proposal
       await query(
-        "UPDATE archives SET lifecycle_status = 'Aktif', updated_at = NOW() WHERE id = $1",
+        `UPDATE archives
+         SET lifecycle_status = 'Aktif',
+             pending_disposal_target = NULL,
+             pending_disposal_ba_number = NULL,
+             pending_disposal_doc_path = NULL,
+             disposal_reviewed_by = $2,
+             disposal_reviewed_at = NOW(),
+             disposal_approved_by = NULL,
+             disposal_approved_at = NULL,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [archiveId, req.user.id]
+      );
+
+      await query(
+        `UPDATE archives
+         SET archive_category = 'Arsip Aktif'
+         WHERE id = $1`,
         [archiveId]
       );
 
@@ -291,10 +309,178 @@ router.post(
   })
 );
 
+// POST /api/disposals/:id/approve-disposal (Persetujuan akhir penyusutan)
+router.post(
+  "/:id/approve-disposal",
+  authenticate,
+  authorize(...FINAL_DISPOSAL_APPROVER_ROLES),
+  archiveUpload.single("disposal_doc"),
+  validateArchiveFiles,
+  scanUploadedFiles,
+  encryptUploadedFiles,
+  asyncHandler(async (req, res) => {
+    const { notes, isApproved, baNumber } = req.body;
+    const archiveId = req.params.id;
+    const file = req.file;
+    const isApprovedVal = isApproved === "true" || isApproved === true;
+
+    if (!FINAL_DISPOSAL_APPROVER_ROLES.includes(req.user.role)) {
+      return res.status(403).json({ message: "Hanya Admin atau Inspektur yang dapat memberi persetujuan akhir penyusutan." });
+    }
+
+    const archiveCheck = await query(
+      `SELECT id, title, document_number, created_by, archive_category, lifecycle_status,
+              pending_disposal_target, pending_disposal_ba_number, pending_disposal_doc_path,
+              disposal_reviewed_by
+       FROM archives
+       WHERE id = $1 AND lifecycle_status = 'Review Penyusutan'`,
+      [archiveId]
+    );
+
+    if (archiveCheck.rows.length === 0) {
+      return res.status(404).json({ message: "Arsip yang menunggu persetujuan akhir penyusutan tidak ditemukan" });
+    }
+
+    const archive = archiveCheck.rows[0];
+
+    if (archive.disposal_reviewed_by && Number(archive.disposal_reviewed_by) === Number(req.user.id)) {
+      return res.status(422).json({ message: "Reviewer awal tidak dapat menjadi pemberi persetujuan akhir pada arsip yang sama." });
+    }
+
+    if (!isApprovedVal) {
+      await query(
+        `UPDATE archives
+         SET lifecycle_status = 'Aktif',
+             archive_category = 'Arsip Aktif',
+             pending_disposal_target = NULL,
+             pending_disposal_ba_number = NULL,
+             pending_disposal_doc_path = NULL,
+             disposal_approved_by = $2,
+             disposal_approved_at = NOW(),
+             updated_at = NOW()
+         WHERE id = $1`,
+        [archiveId, req.user.id]
+      );
+
+      await query(
+        `INSERT INTO archive_lifecycle_logs (archive_id, stage, officer_id, notes, is_approved)
+         VALUES ($1, 'Persetujuan Akhir Penyusutan Ditolak', $2, $3, FALSE)`,
+        [archiveId, req.user.id, notes || "Persetujuan akhir penyusutan ditolak."]
+      );
+
+      await logActivity({
+        userId: req.user.id,
+        action: "REJECT_FINAL_DISPOSAL",
+        entity: "archive",
+        entityId: Number(archiveId),
+        metadata: { title: archive.title, documentNumber: archive.document_number }
+      });
+
+      await createNotification({
+        broadcast: true,
+        title: "Persetujuan Akhir Penyusutan Ditolak",
+        message: `Persetujuan akhir penyusutan arsip "${archive.title}" (${archive.document_number}) ditolak oleh ${req.user.name}.`,
+        type: "penyusutan_ditolak",
+        entityId: archive.id
+      });
+
+      return res.json({ message: "Persetujuan akhir penyusutan ditolak." });
+    }
+
+    const targetCategory = archive.pending_disposal_target;
+    if (!DISPOSAL_TARGET_CATEGORIES.includes(targetCategory)) {
+      return res.status(422).json({ message: "Target akhir penyusutan belum lengkap untuk diproses." });
+    }
+
+    let nextStatus = "Inaktif";
+    let nextCategory = "Arsip Inaktif";
+    let stageText = "Menjadi Arsip Inaktif";
+
+    if (targetCategory === "Arsip Statis") {
+      nextStatus = "Statis";
+      nextCategory = "Arsip Statis";
+      stageText = "Menjadi Arsip Statis";
+    } else if (targetCategory === "Arsip Musnah") {
+      nextStatus = "Usulan Pemusnahan";
+      nextCategory = "Arsip Musnah";
+      stageText = "Diusulkan Musnah";
+    }
+
+    const finalBaNumber = baNumber || archive.pending_disposal_ba_number || null;
+    const finalDocPath = file ? file.filename : (archive.pending_disposal_doc_path || null);
+
+    await query(
+      `UPDATE archives
+       SET lifecycle_status = $1,
+           archive_category = $2,
+           disposal_ba_number = $3,
+           disposal_doc_path = $4,
+           pending_disposal_target = NULL,
+           pending_disposal_ba_number = NULL,
+           pending_disposal_doc_path = NULL,
+           disposal_approved_by = $5,
+           disposal_approved_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $6`,
+      [nextStatus, nextCategory, finalBaNumber, finalDocPath, req.user.id, archiveId]
+    );
+
+    await query(
+      `INSERT INTO archive_lifecycle_logs (archive_id, stage, officer_id, notes, is_approved)
+       VALUES ($1, 'Disetujui Penyusutan', $2, $3, TRUE)`,
+      [
+        archiveId,
+        req.user.id,
+        `Persetujuan akhir penyusutan diberikan. No. BA final: ${finalBaNumber || "-"}. Catatan: ${notes || "-"}`
+      ]
+    );
+
+    await query(
+      `INSERT INTO archive_lifecycle_logs (archive_id, stage, officer_id, notes, is_approved)
+       VALUES ($1, $2, $3, $4, TRUE)`,
+      [archiveId, stageText, req.user.id, "Status akhir penyusutan diterapkan setelah persetujuan berjenjang."]
+    );
+
+    await logActivity({
+      userId: req.user.id,
+      action: targetCategory === "Arsip Statis" ? "MOVE_STATIC" : "APPROVE_FINAL_DISPOSAL",
+      entity: "archive",
+      entityId: Number(archiveId),
+      metadata: {
+        title: archive.title,
+        documentNumber: archive.document_number,
+        targetCategory,
+        baNumber: finalBaNumber
+      }
+    });
+
+    await createNotification({
+      broadcast: true,
+      title: "Penyusutan Disetujui",
+      message: `Usulan penyusutan arsip "${archive.title}" (${archive.document_number}) telah disetujui menjadi ${nextCategory}.`,
+      type: "penyusutan_selesai",
+      entityId: archive.id
+    });
+
+    if (targetCategory === "Arsip Musnah") {
+      await createNotification({
+        broadcast: true,
+        title: "Pemusnahan Menunggu Verifikasi",
+        message: `Arsip "${archive.title}" (${archive.document_number}) disetujui musnah dan menunggu verifikasi.`,
+        type: "menunggu_verifikasi_pemusnahan",
+        entityId: archive.id
+      });
+    }
+
+    res.json({ message: "Persetujuan akhir penyusutan berhasil disimpan." });
+  })
+);
+
 // POST /api/disposals/:id/propose-destruction (Pemusnahan manual)
 router.post(
   "/:id/propose-destruction",
   authenticate,
+  requireArchivePermission(canEditArchive, "Anda tidak dapat mengusulkan pemusnahan arsip ini"),
   asyncHandler(async (req, res) => {
     const { notes } = req.body;
     const archiveId = req.params.id;
@@ -350,6 +536,7 @@ router.post(
 router.post(
   "/:id/verify-destruction",
   authenticate,
+  requireArchivePermission(canEditArchive, "Anda tidak dapat memverifikasi pemusnahan arsip ini"),
   asyncHandler(async (req, res) => {
     const { notes, isApproved } = req.body;
     const archiveId = req.params.id;
@@ -482,7 +669,9 @@ router.post(
 
       // Notify managers/creator to upload BA
       const managersResult = await query(
-        "SELECT id FROM users WHERE role IN ('Admin', 'Sekretaris', 'Sub Bag', 'Staff') AND is_active = TRUE"
+        `SELECT id FROM users
+         WHERE role IN ('Admin', 'Sekretaris', 'Umpeg', 'Sub Bag Perencanaan', 'Sub Bag Keuangan')
+           AND is_active = TRUE`
       );
       const notified = [...managersResult.rows.map((r) => r.id), archive.created_by];
       await createNotification({
@@ -530,10 +719,14 @@ router.post(
 router.post(
   "/:id/destroy",
   authenticate,
+  requireArchivePermission(canEditArchive, "Anda tidak dapat menjalankan pemusnahan arsip ini"),
   archiveUpload.fields([
     { name: "destruction_doc", maxCount: 1 },
     { name: "destruction_photo", maxCount: 1 }
   ]),
+  validateArchiveFiles,
+  scanUploadedFiles,
+  encryptUploadedFiles,
   asyncHandler(async (req, res) => {
     const archiveId = req.params.id;
     const { baNumber, destructionDate, method, officer } = req.body;
@@ -616,6 +809,7 @@ router.post(
 router.get(
   "/:id/download-ba",
   authenticate,
+  requireArchivePermission(canViewArchive, "Anda tidak dapat mengakses berita acara arsip ini"),
   asyncHandler(async (req, res) => {
     const archiveId = req.params.id;
 
@@ -634,8 +828,12 @@ router.get(
       return res.status(404).json({ message: "Dokumen Berita Acara tidak tersedia" });
     }
 
-    const absolutePath = resolveUploadPath(archive.destruction_doc_path);
-    if (!fs.existsSync(absolutePath)) {
+    const egress = await enforceDataEgressPolicy(req, {
+      operation: "destruction_minutes_download",
+      entityId: archive.id
+    });
+
+    if (!await storedObjectExists(archive.destruction_doc_path)) {
       return res.status(404).json({ message: "File dokumen pendukung tidak ditemukan di server" });
     }
 
@@ -645,10 +843,15 @@ router.get(
       action: "DOWNLOAD_BA",
       entity: "archive",
       entityId: Number(archiveId),
-      metadata: { documentNumber: archive.document_number, baNumber: archive.destruction_ba_number }
+      metadata: { documentNumber: archive.document_number, baNumber: archive.destruction_ba_number,
+        egressWeight: 1, projectedEgressCount: egress.projected }
     });
 
-    res.download(absolutePath, `BA-Pemusnahan-${archive.destruction_ba_number}.pdf`);
+    return sendStoredObject(res, archive.destruction_doc_path, {
+      filename: `BA-Pemusnahan-${archive.destruction_ba_number}.pdf`,
+      contentType: "application/pdf",
+      req
+    });
   })
 );
 
@@ -656,11 +859,16 @@ router.get(
 router.get(
   "/:id/download-disposal-ba",
   authenticate,
+  requireArchivePermission(canViewArchive, "Anda tidak dapat mengakses berita acara arsip ini"),
   asyncHandler(async (req, res) => {
     const archiveId = req.params.id;
 
     const result = await query(
-      "SELECT id, title, document_number, disposal_ba_number, disposal_doc_path FROM archives WHERE id = $1",
+      `SELECT id, title, document_number,
+              COALESCE(disposal_ba_number, pending_disposal_ba_number) AS disposal_ba_number,
+              COALESCE(disposal_doc_path, pending_disposal_doc_path) AS disposal_doc_path
+       FROM archives
+       WHERE id = $1`,
       [archiveId]
     );
 
@@ -674,8 +882,12 @@ router.get(
       return res.status(404).json({ message: "Dokumen Berita Acara Penyusutan tidak tersedia" });
     }
 
-    const absolutePath = resolveUploadPath(archive.disposal_doc_path);
-    if (!fs.existsSync(absolutePath)) {
+    const egress = await enforceDataEgressPolicy(req, {
+      operation: "disposal_minutes_download",
+      entityId: archive.id
+    });
+
+    if (!await storedObjectExists(archive.disposal_doc_path)) {
       return res.status(404).json({ message: "File dokumen pendukung tidak ditemukan di server" });
     }
 
@@ -685,10 +897,15 @@ router.get(
       action: "DOWNLOAD_BA",
       entity: "archive",
       entityId: Number(archiveId),
-      metadata: { documentNumber: archive.document_number, baNumber: archive.disposal_ba_number }
+      metadata: { documentNumber: archive.document_number, baNumber: archive.disposal_ba_number,
+        egressWeight: 1, projectedEgressCount: egress.projected }
     });
 
-    res.download(absolutePath, `BA-Penyusutan-${archive.disposal_ba_number}.pdf`);
+    return sendStoredObject(res, archive.disposal_doc_path, {
+      filename: `BA-Penyusutan-${archive.disposal_ba_number}.pdf`,
+      contentType: "application/pdf",
+      req
+    });
   })
 );
 

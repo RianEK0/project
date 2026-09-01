@@ -1,4 +1,5 @@
 import { cleanText, parseOptionalInt } from "../utils/http.js";
+import { canAccessAllArchives } from "./permissions.js";
 
 export const ARCHIVE_STATUSES = ["Draft", "Menunggu Review", "Terverifikasi", "Ditolak", "Diarsipkan"];
 export const ARCHIVE_CATEGORIES = ["Arsip Aktif", "Arsip Inaktif", "Arsip Statis", "Arsip Musnah"];
@@ -11,6 +12,26 @@ export function buildArchiveFilters({ filters, user, alias = "a", startIndex = 1
   const where = [];
   let index = startIndex;
 
+  const trashFilter = cleanText(filters.trash || filters.deleted || filters.showDeleted);
+  if (trashFilter === "1" || trashFilter === "true" || trashFilter === "only") {
+    where.push(`${alias}.deleted_at IS NOT NULL`);
+  } else if (trashFilter !== "all") {
+    where.push(`${alias}.deleted_at IS NULL`);
+  }
+
+  if (user && !canAccessAllArchives(user)) {
+    values.push(user.unitId || null, user.id);
+    where.push(
+      `(${alias}.unit_id = $${index} OR ${alias}.created_by = $${index + 1} OR EXISTS (
+        SELECT 1 FROM archive_loans scope_loan
+        WHERE scope_loan.archive_id = ${alias}.id
+          AND scope_loan.user_id = $${index + 1}
+          AND scope_loan.status = 'Disetujui'
+      ))`
+    );
+    index += 2;
+  }
+
   const requestedUnitId = parseOptionalInt(filters.unitId || filters.unit_id);
   if (requestedUnitId) {
     values.push(requestedUnitId);
@@ -20,9 +41,18 @@ export function buildArchiveFilters({ filters, user, alias = "a", startIndex = 1
 
   const search = cleanText(filters.search || filters.q);
   if (search) {
-    values.push(`%${search}%`);
-    where.push(`(${alias}.title ILIKE $${index} OR ${alias}.document_number ILIKE $${index} OR ${alias}.classification ILIKE $${index})`);
-    index += 1;
+    const searchId = parseOptionalInt(search);
+    if (searchId) {
+      values.push(`%${search}%`, searchId);
+      where.push(
+        `(${alias}.title ILIKE $${index} OR ${alias}.document_number ILIKE $${index} OR ${alias}.classification ILIKE $${index} OR ${alias}.id = $${index + 1})`
+      );
+      index += 2;
+    } else {
+      values.push(`%${search}%`);
+      where.push(`(${alias}.title ILIKE $${index} OR ${alias}.document_number ILIKE $${index} OR ${alias}.classification ILIKE $${index})`);
+      index += 1;
+    }
   }
 
   const status = cleanText(filters.status);
@@ -90,10 +120,17 @@ export function archiveSelectSql() {
       a.verified_by, verifier.name AS verifier_name, a.verified_at, a.created_at, a.updated_at,
       a.letter_number, a.archive_date, a.security_level, a.active_retention, a.inactive_retention, a.lifecycle_status,
       a.destruction_ba_number, a.destruction_date, a.destruction_method, a.destruction_officer, a.destruction_doc_path, a.destruction_photo_path,
-      a.disposal_ba_number, a.disposal_doc_path
+      a.disposal_ba_number, a.disposal_doc_path,
+      a.pending_disposal_target, a.pending_disposal_ba_number, a.pending_disposal_doc_path,
+      a.disposal_reviewed_by, review_disposer.name AS disposal_reviewed_by_name, a.disposal_reviewed_at,
+      a.disposal_approved_by, approve_disposer.name AS disposal_approved_by_name, a.disposal_approved_at,
+      a.location_room, a.location_rack, a.location_box, a.location_folder, a.location_file_number,
+      a.deleted_at, a.deleted_by
     FROM archives a
     JOIN organization_units ou ON ou.id = a.unit_id
     LEFT JOIN users creator ON creator.id = a.created_by
     LEFT JOIN users verifier ON verifier.id = a.verified_by
+    LEFT JOIN users review_disposer ON review_disposer.id = a.disposal_reviewed_by
+    LEFT JOIN users approve_disposer ON approve_disposer.id = a.disposal_approved_by
   `;
 }

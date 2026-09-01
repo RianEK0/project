@@ -1,0 +1,118 @@
+name: Signed Container Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-scan-sign:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout immutable revision
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Normalize registry image names
+        id: names
+        shell: bash
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          echo "api=ghcr.io/${repository}/api" >> "$GITHUB_OUTPUT"
+          echo "web=ghcr.io/${repository}/web" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Authenticate to GHCR with ephemeral token
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API image with provenance and SBOM
+        id: api
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: deploy/docker/api.Dockerfile
+          push: true
+          tags: ${{ steps.names.outputs.api }}:${{ github.ref_name }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build and push web image with provenance and SBOM
+        id: web
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: deploy/docker/web.Dockerfile
+          push: true
+          tags: ${{ steps.names.outputs.web }}:${{ github.ref_name }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Reject vulnerable API image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: ${{ steps.names.outputs.api }}@${{ steps.api.outputs.digest }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Reject vulnerable web image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: ${{ steps.names.outputs.web }}@${{ steps.web.outputs.digest }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3.9.1
+
+      - name: Keyless-sign immutable image digests
+        env:
+          API_IMAGE: ${{ steps.names.outputs.api }}
+          API_DIGEST: ${{ steps.api.outputs.digest }}
+          WEB_IMAGE: ${{ steps.names.outputs.web }}
+          WEB_DIGEST: ${{ steps.web.outputs.digest }}
+        run: |
+          cosign sign --yes "${API_IMAGE}@${API_DIGEST}"
+          cosign sign --yes "${WEB_IMAGE}@${WEB_DIGEST}"
+
+      - name: Publish release digest evidence
+        shell: bash
+        env:
+          API_IMAGE: ${{ steps.names.outputs.api }}
+          API_DIGEST: ${{ steps.api.outputs.digest }}
+          WEB_IMAGE: ${{ steps.names.outputs.web }}
+          WEB_DIGEST: ${{ steps.web.outputs.digest }}
+        run: |
+          mkdir -p release-containers
+          printf '%s@%s\n' "$API_IMAGE" "$API_DIGEST" > release-containers/API_IMAGE
+          printf '%s@%s\n' "$WEB_IMAGE" "$WEB_DIGEST" > release-containers/WEB_IMAGE
+          printf '%s\n' "$GITHUB_SHA" > release-containers/COMMIT
+          sha256sum release-containers/API_IMAGE release-containers/WEB_IMAGE release-containers/COMMIT > release-containers/SHA256SUMS
+
+      - name: Retain signed image evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sipadi-container-release-${{ github.sha }}
+          path: release-containers/
+          if-no-files-found: error
+          retention-days: 90

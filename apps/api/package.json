@@ -8,19 +8,29 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "schema": "node db/migrate.js",
-    "seed": "node db/seed.js"
+    "seed": "node db/seed.js",
+    "backup:offsite": "node scripts/offsiteBackup.js",
+    "backup:decrypt-file": "node scripts/decryptOffsiteFile.js",
+    "files:encrypt": "node scripts/encryptStoredFiles.js",
+    "files:migrate-s3": "node scripts/migrateStoredFilesToS3.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1111.0",
+    "@simplewebauthn/server": "^13.3.2",
     "bcryptjs": "^2.4.3",
+    "body-parser": "^1.20.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.18.3",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
+    "otpauth": "^9.5.1",
     "pdfkit": "^0.15.0",
     "pg": "^8.11.3",
+    "qrcode": "^1.5.4",
+    "redis": "^6.2.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.22.4"
   },
   "devDependencies": {

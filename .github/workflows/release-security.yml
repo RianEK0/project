@@ -1,0 +1,67 @@
+name: Attested Security Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-evidence:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout immutable revision
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Security and quality gates
+        run: npm run ci
+
+      - name: Reject high-risk production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build release evidence
+        shell: bash
+        run: |
+          mkdir -p release
+          npm sbom --omit=dev --sbom-format=cyclonedx > release/sipadi-sbom.cdx.json
+          git archive --format=tar.gz --output=release/sipadi-source.tar.gz HEAD
+          sha256sum release/sipadi-source.tar.gz release/sipadi-sbom.cdx.json > release/SHA256SUMS
+          printf '%s\n' "${GITHUB_SHA}" > release/COMMIT
+
+      - name: Attest release provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: release/sipadi-source.tar.gz
+
+      - name: Attest release SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: release/sipadi-source.tar.gz
+          sbom-path: release/sipadi-sbom.cdx.json
+
+      - name: Publish immutable evidence bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sipadi-release-evidence-${{ github.sha }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0

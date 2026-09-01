@@ -7,6 +7,7 @@ import { apiFetch, buildQuery } from "../../../lib/api";
 import { StatusBadge } from "../../../components/StatusBadge";
 import { FileTypeIcon } from "../../../components/FileTypeIcon";
 import { formatDateTime } from "../../../lib/format";
+import { useAuth } from "../../../components/AuthProvider";
 
 function StatCard({ label, value, icon: Icon, tone = "brand", description = "" }) {
   const tones = {
@@ -32,6 +33,36 @@ function StatCard({ label, value, icon: Icon, tone = "brand", description = "" }
         </span>
       </div>
     </div>
+  );
+}
+
+function TaskCard({ task }) {
+  const tones = {
+    brand: "border-brand-100 bg-brand-50 text-brand-700",
+    amber: "border-amber-100 bg-amber-50 text-amber-700",
+    emerald: "border-emerald-100 bg-emerald-50 text-emerald-700",
+    slate: "border-slate-200 bg-slate-50 text-slate-700",
+    red: "border-red-100 bg-red-50 text-red-700",
+    indigo: "border-indigo-100 bg-indigo-50 text-indigo-700",
+    blue: "border-blue-100 bg-blue-50 text-blue-700"
+  };
+
+  return (
+    <Link
+      href={task.href}
+      className="rounded-md border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{task.label}</p>
+          <p className="mt-2 text-3xl font-extrabold text-ink">{task.count ?? 0}</p>
+          <p className="mt-1 text-[11px] font-medium text-slate-400">{task.description}</p>
+        </div>
+        <span className={`rounded-md border px-2 py-1 text-xs font-bold ${tones[task.tone] || tones.brand}`}>
+          Prioritas
+        </span>
+      </div>
+    </Link>
   );
 }
 
@@ -226,6 +257,7 @@ function ClassificationList({ data, title }) {
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth();
   const [unitId, setUnitId] = useState("");
   const [units, setUnits] = useState([]);
   const [dashboard, setDashboard] = useState(null);
@@ -255,6 +287,9 @@ export default function DashboardPage() {
 
   const stats = dashboard?.stats || {};
   const activeUnit = useMemo(() => units.find((unit) => unit.id === Number(unitId)), [units, unitId]);
+  const todayTasks = dashboard?.todayTasks || [];
+  const roleSummary = dashboard?.roleSummary || {};
+  const automation = dashboard?.automation || null;
 
   // Chart data formatting
   const monthlyCreationData = useMemo(() => {
@@ -341,6 +376,33 @@ export default function DashboardPage() {
       </div>
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+
+      <section className="space-y-4">
+        <div className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-700">Tugas Hari Ini</p>
+            <h2 className="mt-1 text-lg font-bold text-ink">
+              {roleSummary.mode === "global" ? "Panel prioritas pimpinan/admin" : `Panel kerja ${user?.role || "pegawai"}`}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Fokus cepat untuk item yang butuh tindakan pada {new Date("2026-08-05").toLocaleDateString("id-ID", { dateStyle: "long" })}.
+            </p>
+          </div>
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            Reminder otomatis:{" "}
+            <span className={`font-semibold ${automation?.last_status === "success" ? "text-emerald-700" : "text-amber-700"}`}>
+              {automation?.last_status === "success" ? "aktif" : "menunggu run"}
+            </span>
+            {automation?.last_run_at ? ` | terakhir ${formatDateTime(automation.last_run_at)}` : ""}
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {todayTasks.map((task) => (
+            <TaskCard key={task.key} task={task} />
+          ))}
+        </div>
+      </section>
 
       {/* Main Stats Block */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">

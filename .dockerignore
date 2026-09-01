@@ -1,0 +1,10 @@
+.git
+.github
+.next
+node_modules
+npm-debug.log*
+apps/api/.env
+apps/api/uploads
+apps/web/.env.local
+deploy/certs/*.crt
+deploy/certs/*.key

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
 import pg from "pg";
+import { appendAuditLog } from "../src/services/audit.js";
 
 const { Pool } = pg;
 
@@ -92,7 +93,7 @@ async function main() {
   try {
     await client.query("BEGIN");
     await client.query(`
-      TRUNCATE disposition_history, dispositions, archive_comments, audit_logs, archives, users, organization_units
+      TRUNCATE disposition_history, dispositions, archive_comments, archives, users, organization_units
       RESTART IDENTITY CASCADE
     `);
 
@@ -104,7 +105,8 @@ async function main() {
       );
     }
 
-    const passwordHash = await bcrypt.hash("password123", 10);
+    const demoPassword = process.env.SEED_DEFAULT_PASSWORD || "SipadiDemo2026";
+    const passwordHash = await bcrypt.hash(demoPassword, 12);
     for (const user of users) {
       await client.query(
         `INSERT INTO users (name, username, email, password_hash, role, unit_id)
@@ -261,23 +263,18 @@ async function main() {
 
     for (let i = 1; i <= 20; i += 1) {
       const action = actions[i % actions.length];
-      await client.query(
-        `INSERT INTO audit_logs (user_id, action, entity, entity_id, metadata, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          (i % 10) + 1,
-          action[0],
-          action[1],
-          i <= 30 ? i : null,
-          JSON.stringify({ source: "seed", message: `Aktivitas dummy ${i}` }),
-          daysAgo(20 - i)
-        ]
-      );
+      await appendAuditLog(client, {
+        userId: (i % 10) + 1,
+        action: action[0],
+        entity: action[1],
+        entityId: i <= 30 ? i : null,
+        metadata: { source: "seed", message: `Aktivitas dummy ${i}` }
+      });
     }
 
     await client.query("COMMIT");
     console.log("Seed selesai: 10 user, 11 unit organisasi, 30 arsip, 10 disposisi, 20 aktivitas.");
-    console.log("Login dummy: admin@sipadi.test / password123");
+    console.log(`Login dummy: admin@sipadi.test / ${demoPassword}`);
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

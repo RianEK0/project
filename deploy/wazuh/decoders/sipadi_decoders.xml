@@ -1,0 +1,12 @@
+<decoder name="sipadi-security">
+  <prematch>SECURITY_EVENT </prematch>
+  <plugin_decoder offset="after_prematch">JSON_Decoder</plugin_decoder>
+</decoder>
+
+<decoder name="sipadi-security-store-failed">
+  <prematch>SECURITY_EVENT_STORE_FAILED</prematch>
+</decoder>
+
+<decoder name="sipadi-startup-security-failure">
+  <prematch>SIPADI_STARTUP_SECURITY_FAILURE</prematch>
+</decoder>

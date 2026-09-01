@@ -12,7 +12,10 @@ const statusClass = {
   Dibaca: "bg-sky-50 text-sky-700 border-sky-200",
   Diproses: "bg-amber-50 text-amber-700 border-amber-200",
   Selesai: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  Dibatalkan: "bg-red-50 text-red-700 border-red-200"
+  Dibatalkan: "bg-red-50 text-red-700 border-red-200",
+  "Menunggu Persetujuan": "bg-amber-50 text-amber-700 border-amber-200",
+  Disetujui: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Dikembalikan: "bg-sky-50 text-sky-700 border-sky-200"
 };
 
 export function StatusBadge({ status }) {

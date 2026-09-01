@@ -75,6 +75,12 @@ export default function PenyusutanPage() {
   const [reviewBaNumber, setReviewBaNumber] = useState("");
   const [reviewDoc, setReviewDoc] = useState(null);
   const [reviewing, setReviewing] = useState(false);
+  const [finalApprovalOpen, setFinalApprovalOpen] = useState(false);
+  const [finalApprovalNotes, setFinalApprovalNotes] = useState("");
+  const [finalApprovalApproved, setFinalApprovalApproved] = useState(true);
+  const [finalApprovalBaNumber, setFinalApprovalBaNumber] = useState("");
+  const [finalApprovalDoc, setFinalApprovalDoc] = useState(null);
+  const [finalApproving, setFinalApproving] = useState(false);
 
   const loadData = useCallback(async () => {
     setError("");
@@ -212,6 +218,36 @@ export default function PenyusutanPage() {
     }
   }
 
+  async function handleFinalApproval(event) {
+    event.preventDefault();
+    if (!detail) return;
+    setFinalApproving(true);
+    try {
+      const payload = new FormData();
+      payload.append("notes", finalApprovalNotes);
+      payload.append("isApproved", finalApprovalApproved);
+      payload.append("baNumber", finalApprovalBaNumber);
+      if (finalApprovalDoc) {
+        payload.append("disposal_doc", finalApprovalDoc);
+      }
+
+      await apiFetch(`/disposals/${detail.id}/approve-disposal`, {
+        method: "POST",
+        body: payload
+      });
+      setFinalApprovalOpen(false);
+      setFinalApprovalNotes("");
+      setFinalApprovalBaNumber("");
+      setFinalApprovalDoc(null);
+      setDetailOpen(false);
+      await loadData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setFinalApproving(false);
+    }
+  }
+
   function triggerPropose() {
     if (!detail) return;
     setProposeNotes(`Mengusulkan penyusutan untuk arsip "${detail.title}". Retensi aktif telah habis.`);
@@ -226,6 +262,15 @@ export default function PenyusutanPage() {
     setReviewBaNumber("");
     setReviewDoc(null);
     setReviewOpen(true);
+  }
+
+  function triggerFinalApproval() {
+    if (!detail) return;
+    setFinalApprovalNotes("");
+    setFinalApprovalApproved(true);
+    setFinalApprovalBaNumber(detail.pending_disposal_ba_number || "");
+    setFinalApprovalDoc(null);
+    setFinalApprovalOpen(true);
   }
 
   // Filter datasets based on Search, Unit, and Category
@@ -252,7 +297,8 @@ export default function PenyusutanPage() {
     });
   }, [data.proposedPenyusutan, search, filterUnit, filterCategory]);
 
-  const isManager = user && ["Admin", "Inspektur", "Sekretaris"].includes(user.role);
+  const isManager = user && ["Admin", "Inspektur", "Sekretaris", "Umpeg"].includes(user.role);
+  const canGiveFinalApproval = user && ["Admin", "Inspektur"].includes(user.role);
 
   return (
     <div className="space-y-5">
@@ -420,6 +466,7 @@ export default function PenyusutanPage() {
                     <td className="px-4 py-3">
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
                         archive.lifecycle_status === 'Usulan Penyusutan' ? 'bg-amber-100 text-amber-800' :
+                        archive.lifecycle_status === 'Review Penyusutan' ? 'bg-sky-100 text-sky-800' :
                         archive.lifecycle_status === 'Inaktif' ? 'bg-indigo-100 text-indigo-800' :
                         archive.lifecycle_status === 'Statis' ? 'bg-emerald-100 text-emerald-800' :
                         'bg-slate-100 text-slate-800'
@@ -446,6 +493,18 @@ export default function PenyusutanPage() {
                           className="focus-ring inline-flex h-8 items-center justify-center rounded-md bg-amber-600 px-3 text-xs font-semibold text-white hover:bg-amber-700"
                         >
                           <ShieldCheck size={13} className="mr-1" /> Review
+                        </button>
+                      )}
+                      {archive.lifecycle_status === "Review Penyusutan" && canGiveFinalApproval && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDetail(archive);
+                            triggerFinalApproval();
+                          }}
+                          className="focus-ring inline-flex h-8 items-center justify-center rounded-md bg-sky-600 px-3 text-xs font-semibold text-white hover:bg-sky-700"
+                        >
+                          <ShieldCheck size={13} className="mr-1" /> Persetujuan Akhir
                         </button>
                       )}
                     </td>
@@ -501,7 +560,17 @@ export default function PenyusutanPage() {
                     Review & Tentukan Keputusan
                   </button>
                 )}
-                {detail.disposal_doc_path && (
+                {detail.lifecycle_status === "Review Penyusutan" && canGiveFinalApproval && (
+                  <button
+                    type="button"
+                    onClick={triggerFinalApproval}
+                    className="focus-ring inline-flex h-9 items-center justify-center rounded-md bg-sky-600 px-4 text-xs font-bold text-white hover:bg-sky-700"
+                  >
+                    <ShieldCheck size={14} className="mr-1.5" />
+                    Persetujuan Akhir
+                  </button>
+                )}
+                {(detail.disposal_doc_path || detail.pending_disposal_doc_path) && (
                   <button
                     type="button"
                     onClick={() =>
@@ -530,10 +599,14 @@ export default function PenyusutanPage() {
                 <Info label="Nomor Surat" value={detail.letter_number || "-"} />
                 <Info label="Tanggal Arsip" value={detail.archive_date ? new Date(detail.archive_date).toLocaleDateString("id-ID") : "-"} />
                 <Info label="Nomor BA Penyusutan" value={detail.disposal_ba_number || "-"} />
+                <Info label="Draft BA Penyusutan" value={detail.pending_disposal_ba_number || "-"} />
+                <Info label="Target Akhir Penyusutan" value={detail.pending_disposal_target || detail.archive_category || "-"} />
                 <Info label="Masa Retensi" value={`${detail.active_retention || 0} Thn Aktif / ${detail.inactive_retention || 0} Thn Inaktif`} />
                 <Info label="Status Siklus Hidup" value={detail.lifecycle_status || "Aktif"} />
                 <Info label="Tahun" value={detail.year} />
                 <Info label="Pembuat" value={detail.creator_name} />
+                <Info label="Reviewer Penyusutan" value={detail.disposal_reviewed_by_name || "-"} />
+                <Info label="Approver Akhir" value={detail.disposal_approved_by_name || "-"} />
                 <Info label="Ukuran file" value={formatBytes(detail.file_size)} />
               </dl>
 
@@ -706,7 +779,7 @@ export default function PenyusutanPage() {
       </Modal>
 
       {/* Review Modal */}
-      <Modal title="Review Usulan Penyusutan" open={reviewOpen} onClose={() => setReviewOpen(false)}>
+      <Modal title="Review Tahap 1 Penyusutan" open={reviewOpen} onClose={() => setReviewOpen(false)}>
         {detail && (
           <form onSubmit={handleReview} className="space-y-4">
             <div>
@@ -726,7 +799,7 @@ export default function PenyusutanPage() {
                     onChange={() => setReviewApproved(true)}
                     className="h-4 w-4 border-slate-300 text-brand-600 focus:ring-brand-500"
                   />
-                  Setujui Penyusutan
+                  Loloskan ke Persetujuan Akhir
                 </label>
                 <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
                   <input
@@ -757,7 +830,7 @@ export default function PenyusutanPage() {
                 </label>
 
                 <label className="block">
-                  <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Nomor Berita Acara Penyusutan</span>
+                  <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Nomor Draft Berita Acara</span>
                   <input
                     type="text"
                     value={reviewBaNumber}
@@ -804,6 +877,102 @@ export default function PenyusutanPage() {
                 className="focus-ring rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
               >
                 {reviewing ? "Memproses..." : "Simpan Keputusan"}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      <Modal title="Persetujuan Akhir Penyusutan" open={finalApprovalOpen} onClose={() => setFinalApprovalOpen(false)}>
+        {detail && (
+          <form onSubmit={handleFinalApproval} className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase text-slate-400">Arsip</p>
+              <p className="text-sm font-bold text-ink">{detail.title}</p>
+              <p className="text-xs text-slate-500">{detail.document_number}</p>
+            </div>
+
+            <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-700">
+              <p className="font-semibold">Target akhir: {detail.pending_disposal_target || "-"}</p>
+              <p className="mt-1 text-xs">Reviewer tahap 1: {detail.disposal_reviewed_by_name || "-"}</p>
+            </div>
+
+            <div className="space-y-2">
+              <span className="block text-xs font-semibold uppercase text-slate-500">Persetujuan Akhir</span>
+              <div className="flex gap-4">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+                  <input
+                    type="radio"
+                    name="isFinalApproved"
+                    checked={finalApprovalApproved === true}
+                    onChange={() => setFinalApprovalApproved(true)}
+                    className="h-4 w-4 border-slate-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  Setujui
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+                  <input
+                    type="radio"
+                    name="isFinalApproved"
+                    checked={finalApprovalApproved === false}
+                    onChange={() => setFinalApprovalApproved(false)}
+                    className="h-4 w-4 border-slate-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  Tolak
+                </label>
+              </div>
+            </div>
+
+            {finalApprovalApproved ? (
+              <>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Nomor BA Final</span>
+                  <input
+                    type="text"
+                    value={finalApprovalBaNumber}
+                    onChange={(event) => setFinalApprovalBaNumber(event.target.value)}
+                    className="focus-ring h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+                    placeholder="Gunakan nomor draft atau isi nomor final"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Upload BA Final (Opsional)</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    onChange={(event) => setFinalApprovalDoc(event.target.files?.[0] || null)}
+                    className="focus-ring block w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm"
+                  />
+                </label>
+              </>
+            ) : null}
+
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">Catatan</span>
+              <textarea
+                value={finalApprovalNotes}
+                onChange={(event) => setFinalApprovalNotes(event.target.value)}
+                className="focus-ring min-h-24 w-full rounded-md border border-slate-200 p-3 text-sm"
+                placeholder="Catatan persetujuan akhir"
+                required
+              />
+            </label>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setFinalApprovalOpen(false)}
+                className="focus-ring rounded-md border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={finalApproving}
+                className="focus-ring rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
+              >
+                {finalApproving ? "Memproses..." : "Simpan Persetujuan Akhir"}
               </button>
             </div>
           </form>

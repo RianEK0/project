@@ -81,7 +81,7 @@ export default function DispositionsPage() {
   async function submitDisposition(event) {
     event.preventDefault();
     if (!canCreateDisposition(user)) {
-      setError("Hanya Admin, Inspektur, atau Sekretaris yang dapat membuat disposisi");
+      setError("Hanya Admin, Inspektur, Sekretaris, atau Umpeg yang dapat membuat disposisi");
       return;
     }
 

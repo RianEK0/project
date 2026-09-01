@@ -14,6 +14,55 @@ Data di repo ini seluruhnya dummy.
 - Export laporan: PDF dan Excel
 - Target deploy: Vercel frontend, Render/Railway backend, Supabase database
 
+## Flowchart Aplikasi
+
+```mermaid
+flowchart TD
+    A([Mulai]) --> B[Login]
+    B --> C{Kredensial valid?}
+    C -- Tidak --> D[Tampilkan pesan kesalahan]
+    D --> B
+    C -- Ya --> E[Dashboard]
+
+    E --> F[Kelola Arsip]
+    F --> G{Review arsip}
+    G -- Perlu perbaikan --> H[Perbaiki data arsip]
+    H --> F
+    G -- Terverifikasi --> I[Disposisi]
+
+    E --> J[Peminjaman Arsip]
+    J --> K[Persetujuan dan Pengembalian]
+
+    E --> L[Pemeliharaan dan Penyusutan]
+    L --> M[Pemusnahan Arsip]
+
+    E --> N[Laporan dan Audit Log]
+
+    I --> O[(PostgreSQL)]
+    K --> O
+    M --> O
+    N --> O
+    O --> P[Notifikasi dan Riwayat Aktivitas]
+```
+
+Dokumentasi use case, activity diagram, sequence diagram, dan ERD tersedia di [Dokumentasi Diagram SIPADI](./sipadi_diagrams.md).
+
+## Tampilan Aplikasi
+
+Seluruh data yang terlihat pada screenshot berikut merupakan data pengembangan/dummy.
+
+### Halaman Login
+
+![Halaman login SIPADI](./docs/screenshots/login.png)
+
+### Dashboard
+
+![Dashboard SIPADI](./docs/screenshots/dashboard.png)
+
+### Manajemen Arsip
+
+![Halaman manajemen arsip SIPADI](./docs/screenshots/archives.png)
+
 ## Struktur Folder
 
 ```text
@@ -70,10 +119,10 @@ Akun login utama:
 
 ```text
 admin@sipadi.test
-password123
+SipadiDemo2026
 ```
 
-Semua user seed memakai password `password123`.
+Semua user seed memakai password `SipadiDemo2026` atau nilai `SEED_DEFAULT_PASSWORD` bila environment variable tersebut diisi. Kredensial seed hanya untuk pengembangan dan wajib diganti sebelum deployment.
 
 ## Cara Menjalankan Lokal
 
@@ -234,15 +283,56 @@ Output mengikuti standar Next.js di Vercel.
 
 ## Security Yang Sudah Disiapkan
 
-- Password di-hash dengan `bcryptjs`.
-- Auth JWT dengan expiry.
+- Password baru minimal 12 karakter, memakai huruf besar, huruf kecil, dan angka; hash baru menggunakan bcrypt cost 12.
+- Akun baru dan password yang direset wajib diganti oleh pemilik akun; password saat ini dan lima password sebelumnya tidak dapat dipakai ulang.
+- Auth JWT dibatasi ke algoritma HS256, issuer, audience, expiry, `jti`, `auth_time`, dan `token_version`. Setiap sesi dicatat server-side memakai hash ID, dapat dilihat/dicabut oleh pemilik, dan langsung dicabut saat password, role, unit, status akun, MFA, atau passkey berubah.
+- Sesi memiliki batas absolut 8 jam, idle timeout server-side 30 menit, dan maksimum tiga sesi aktif secara default. Pengguna dapat mencabut satu perangkat atau semua perangkat lain setelah mengonfirmasi password.
+- Percobaan login dibatasi per kombinasi IP dan akun. Penghitung kegagalan dan masa lockout disimpan di database sehingga tidak dapat dilewati dengan mengganti IP atau me-restart API.
+- Sesi browser menggunakan cookie `HttpOnly`, `SameSite=Strict`, `Secure` pada production, serta pemeriksaan Origin/Fetch Metadata untuk menolak mutasi lintas situs; token tidak tersedia bagi JavaScript browser dan tidak dikirim melalui query string SSE.
+- Passkey WebAuthn dengan user verification wajib tersedia dan menjadi persyaratan role `Admin`/`Inspektur` pada production; TOTP dan recovery code tetap didukung sebagai faktor terkelola.
+- Reset MFA, membuka akun terkunci, pengelolaan akun istimewa, ekspor backup, dan restore memakai WebAuthn step-up langsung di dalam sesi. Challenge sekali pakai terikat ke user, ID sesi, dan jenis operasi; verifikasi berhasil merotasi ID sesi serta hanya memberi izin untuk operasi tersebut selama `PRIVILEGED_REAUTH_MAX_AGE_MINUTES`.
+- Probe SQL injection, XSS, command injection, path traversal, dan akses honeypot dicatat sebagai insiden; sumber berulang diblokir sementara.
+- Pusat Keamanan untuk Admin/Inspektur menampilkan event, IP yang sedang diblokir, tingkat keparahan, dan alur review insiden.
+- Audit log baru bersifat append-only dan tamper-evident: HMAC hash chain, key ID/rotasi, advisory lock, verifikasi integritas, serta trigger yang menolak insert unsigned, rantai terputus, update, delete, dan truncate.
+- Endpoint readiness/Prometheus dipisah dari health check publik dan dilindungi token internal; URL 404 dikumpulkan tanpa label attacker-controlled.
+- File arsip, spreadsheet impor, dan backup restore dapat dipindai oleh ClamAV sebelum diproses. Production menggunakan mode fail-closed.
+- Stack produksi berlapis OWASP ModSecurity CRS (WAF), jaringan container privat, ClamAV, PostgreSQL privat, log SIEM-ready, dan konfigurasi Fail2ban.
+
+Panduan menjalankan deployment anti-hack tersedia di [`deploy/ANTI_HACK.md`](deploy/ANTI_HACK.md). Gunakan `docker-compose.security.yml` untuk stack production; `docker-compose.yml` tetap dipertahankan sebagai PostgreSQL development lokal.
+
+- Paket kesiapan pemerintah, threat model, matriks kontrol SMKI/SPBE, tata kelola data, runbook, register, dan gerbang go-live tersedia di [`docs/government/README.md`](docs/government/README.md).
+- Workflow rilis membuat CycloneDX SBOM, checksum SHA-256, dan GitHub/Sigstore artifact attestation dari action yang dipin ke commit immutable; panduan verifikasi ada di [`deploy/supply-chain/README.md`](deploy/supply-chain/README.md).
 - Role-based access control di endpoint sensitif.
-- Arsip bersifat terbuka untuk dibaca semua user login.
-- File arsip bisa dipratinjau dan diunduh dari detail arsip oleh user login.
+- Daftar, dashboard, laporan, dan proses penyusutan dibatasi ke arsip unit sendiri, arsip buatan sendiri, atau arsip dengan pinjaman yang disetujui; role global tetap dapat mengakses lintas unit.
+- File arsip bisa dipratinjau dan diunduh dari detail arsip oleh user yang memiliki akses; dokumen `Rahasia` tetap view-only.
 - Edit dan hapus arsip hanya untuk Admin, Inspektur, Sekretaris, atau role `Sub Bag`/`Irban Wilayah` pada unit arsipnya.
 - Perubahan status arsip hanya untuk Admin, Inspektur, Sekretaris, atau role `Sub Bag`/`Irban Wilayah` pada unit arsipnya.
-- Pembuatan disposisi hanya untuk Admin, Inspektur, atau Sekretaris.
+- Pembuatan disposisi hanya untuk role dengan akses global.
 - Validasi input dengan `zod`.
-- Validasi upload extension, MIME, dan ukuran file.
-- `helmet` untuk header security dasar.
-- Semua secret lewat environment variable.
+- Validasi upload mencakup extension, MIME, ukuran, signature/magic bytes, nama acak, dan pencegahan path traversal.
+- Backup dan restore data penuh hanya tersedia untuk role `Admin`.
+- `helmet`, CSP, anti-framing, `nosniff`, referrer policy, permissions policy, request ID, dan log request yang dinetralisasi.
+- CORS memakai allowlist `FRONTEND_URL`; origin localhost tidak otomatis dibuka pada mode production.
+- Mode production menolak startup bila database masih memakai kredensial development, secret kosong/placeholder/kurang dari 32 karakter, atau satu secret dipakai untuk lebih dari satu fungsi keamanan.
+- Pool PostgreSQL memiliki batas koneksi, connection/query/statement timeout, application name, keepalive, serta mode TLS `disable`, `require`, atau `verify-full`; gunakan `verify-full` dan CA tepercaya untuk database di luar jaringan privat stack.
+- Audit dependensi produksi dan development saat ini tidak menemukan vulnerability.
+
+Setelah menarik perubahan keamanan, terapkan tabel registri sesi, riwayat password, dan kolom lockout dengan:
+
+```bash
+npm run db:schema
+```
+
+Semua sesi lama perlu login ulang karena sesi tanpa registrasi server dan klaim `jti` ditolak.
+
+## Roadmap Pengembangan
+
+Backlog dan prioritas pengembangan lanjutan SIPADI dirangkum di [ROADMAP.md](./ROADMAP.md).
+
+Prioritas yang paling terasa setelah fitur pengembalian peminjaman:
+
+- Reminder jatuh tempo peminjaman
+- Perpanjangan peminjaman
+- Riwayat peminjaman per arsip
+- Inbox notifikasi penuh
+- Pengaturan akun

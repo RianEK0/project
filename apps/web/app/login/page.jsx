@@ -2,20 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LockKeyhole, LogIn, UserRound, Eye, EyeOff } from "lucide-react";
+import Image from "next/image";
+import { LockKeyhole, LogIn, UserRound, Eye, EyeOff, Fingerprint } from "lucide-react";
+import { startAuthentication } from "@simplewebauthn/browser";
 import { useAuth } from "../../components/AuthProvider";
+import { apiFetch } from "../../lib/api";
+
+function requiresAccountSetup(account) {
+  return account?.passwordChangeRequired || account?.mfaSetupRequired || account?.passkeySetupRequired;
+}
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, user, loading } = useAuth();
+  const { login, verifyMfa, verifyPasskey, user, loading } = useAuth();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [mfaChallenge, setMfaChallenge] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) router.replace("/dashboard");
+    if (!loading && user) router.replace(requiresAccountSetup(user) ? "/settings" : "/dashboard");
   }, [loading, user, router]);
 
   async function handleSubmit(event) {
@@ -23,8 +33,37 @@ export default function LoginPage() {
     setError("");
     setSubmitting(true);
     try {
-      await login(identifier, password);
-      router.replace("/dashboard");
+      if (mfaChallenge) {
+        const result = await verifyMfa(mfaChallenge, mfaCode);
+        router.replace(requiresAccountSetup(result.user) ? "/settings" : "/dashboard");
+      } else {
+        const result = await login(identifier, password);
+        if (result.mfaRequired) {
+          setMfaChallenge(result.challengeToken);
+          setPasskeyAvailable(Boolean(result.passkeyAvailable));
+          setPassword("");
+          return;
+        }
+        router.replace(requiresAccountSetup(result.user) ? "/settings" : "/dashboard");
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handlePasskey() {
+    setError("");
+    setSubmitting(true);
+    try {
+      const optionResult = await apiFetch("/auth/passkeys/authentication/options", {
+        method: "POST",
+        body: JSON.stringify({ challengeToken: mfaChallenge })
+      });
+      const assertion = await startAuthentication({ optionsJSON: optionResult.data.options });
+      const result = await verifyPasskey(mfaChallenge, optionResult.data.ceremonyToken, assertion);
+      router.replace(requiresAccountSetup(result.user) ? "/settings" : "/dashboard");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -47,9 +86,11 @@ export default function LoginPage() {
           
           {/* Top Header Logo */}
           <div className="relative z-10 flex items-center gap-3 bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/10 w-fit">
-            <img
+            <Image
               src="/logo_depok.png"
               alt="Logo Kota Depok"
+              width={32}
+              height={32}
               className="h-8 w-8 object-contain"
             />
             <div className="text-left">
@@ -62,9 +103,11 @@ export default function LoginPage() {
           <div className="relative z-10 my-auto flex flex-col items-center text-center py-6">
             <div className="relative flex h-36 w-36 items-center justify-center rounded-full bg-white/5 p-3 backdrop-blur-sm border border-white/20 shadow-2xl transition-transform duration-500 hover:scale-105">
               <div className="absolute inset-0.5 rounded-full bg-white p-2.5 shadow-inner">
-                <img
+                <Image
                   src="/logo-inspektorat.jpg"
                   alt="Logo Inspektorat"
+                  width={120}
+                  height={120}
                   className="h-full w-full object-contain rounded-full"
                 />
               </div>
@@ -98,14 +141,48 @@ export default function LoginPage() {
               Portal Resmi
             </span>
             <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-800">
-              Selamat Datang
+              {mfaChallenge ? "Verifikasi Dua Langkah" : "Selamat Datang"}
             </h2>
             <p className="mt-2 text-sm text-slate-500 leading-relaxed">
-              Silakan masuk dengan akun Anda untuk mengelola arsip dan disposisi surat secara digital.
+              {mfaChallenge
+                ? "Masukkan kode 6 digit dari aplikasi authenticator atau satu recovery code."
+                : "Silakan masuk dengan akun Anda untuk mengelola arsip dan disposisi surat secara digital."}
             </p>
           </div>
 
           <div className="space-y-5">
+            {mfaChallenge ? (
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block">
+                  Kode Authenticator / Recovery
+                </label>
+                <div className="relative group">
+                  <LockKeyhole className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-500" size={18} />
+                  <input
+                    value={mfaCode}
+                    onChange={(event) => setMfaCode(event.target.value)}
+                    className="w-full h-12 pl-11 pr-4 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-mono tracking-wider outline-none focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10"
+                    placeholder="123456 atau recovery code"
+                    autoComplete="one-time-code"
+                    autoFocus
+                    required
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMfaChallenge("");
+                    setMfaCode("");
+                    setPasskeyAvailable(false);
+                    setError("");
+                  }}
+                  className="text-xs font-semibold text-brand-700 hover:text-brand-800"
+                >
+                  Kembali ke login
+                </button>
+              </div>
+            ) : (
+              <>
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block">
                 Email atau Username
@@ -145,6 +222,8 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
+              </>
+            )}
           </div>
 
           {error && (
@@ -175,10 +254,21 @@ export default function LoginPage() {
             ) : (
               <>
                 <LogIn size={18} />
-                <span>Masuk ke Sistem</span>
+                <span>{mfaChallenge ? "Verifikasi & Masuk" : "Masuk ke Sistem"}</span>
               </>
             )}
           </button>
+
+          {mfaChallenge && passkeyAvailable ? (
+            <button
+              type="button"
+              onClick={handlePasskey}
+              disabled={submitting}
+              className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-brand-200 bg-brand-50 text-sm font-semibold text-brand-800 hover:bg-brand-100 disabled:opacity-60"
+            >
+              <Fingerprint size={19} /> Gunakan Passkey
+            </button>
+          ) : null}
 
           <p className="mt-8 text-center text-xs text-slate-400 leading-relaxed">
             Hak Cipta &copy; {new Date().getFullYear()} Inspektorat Kota Depok. <br className="sm:hidden" /> Seluruh Hak Cipta Dilindungi.
@@ -188,4 +278,3 @@ export default function LoginPage() {
     </main>
   );
 }
-

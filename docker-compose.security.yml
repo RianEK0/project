@@ -1,0 +1,282 @@
+x-service-security: &service-security
+  restart: unless-stopped
+  init: true
+  pids_limit: 300
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "5"
+
+services:
+  postgres:
+    <<: *service-security
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sipadi}
+      POSTGRES_USER: ${POSTGRES_USER:-sipadi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diisi}
+    volumes:
+      - sipadi-postgres-data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 2g
+    cpus: 2.0
+
+  clamav:
+    <<: *service-security
+    image: clamav/clamav:1.4_base
+    user: clamav
+    entrypoint: /init-unprivileged
+    environment:
+      CLAMAV_NO_MILTERD: "true"
+      FRESHCLAM_CHECKS: "12"
+    volumes:
+      - clamav-signatures:/var/lib/clamav
+    expose:
+      - "3310"
+    networks:
+      - security
+    mem_limit: 4g
+    cpus: 2.0
+
+  security-state:
+    <<: *service-security
+    image: valkey/valkey:8.0-alpine
+    command:
+      - valkey-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --requirepass
+      - ${SECURITY_STATE_REDIS_PASSWORD:?SECURITY_STATE_REDIS_PASSWORD wajib diisi}
+    environment:
+      VALKEY_PASSWORD: ${SECURITY_STATE_REDIS_PASSWORD:?SECURITY_STATE_REDIS_PASSWORD wajib diisi}
+    volumes:
+      - sipadi-security-state:/data
+    expose:
+      - "6379"
+    networks:
+      - security
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli --no-auth-warning -a \"$$VALKEY_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    mem_limit: 256m
+    cpus: 0.5
+
+  api:
+    <<: *service-security
+    build:
+      context: .
+      dockerfile: deploy/docker/api.Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sipadi}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sipadi}
+      DATABASE_SSL_MODE: ${DATABASE_SSL_MODE:-disable}
+      DATABASE_SSL_CA_BASE64: ${DATABASE_SSL_CA_BASE64:-}
+      DATABASE_PRIVATE_NETWORK_ACKNOWLEDGED: ${DATABASE_PRIVATE_NETWORK_ACKNOWLEDGED:-false}
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-20}
+      DATABASE_IDLE_TIMEOUT_MS: ${DATABASE_IDLE_TIMEOUT_MS:-30000}
+      DATABASE_CONNECTION_TIMEOUT_MS: ${DATABASE_CONNECTION_TIMEOUT_MS:-5000}
+      DATABASE_STATEMENT_TIMEOUT_MS: ${DATABASE_STATEMENT_TIMEOUT_MS:-15000}
+      DATABASE_QUERY_TIMEOUT_MS: ${DATABASE_QUERY_TIMEOUT_MS:-20000}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET wajib diisi minimal 32 karakter}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      JWT_ISSUER: ${JWT_ISSUER:-sipadi-api}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-sipadi-web}
+      SESSION_COOKIE_HOURS: ${SESSION_COOKIE_HOURS:-8}
+      SESSION_IDLE_TIMEOUT_MINUTES: ${SESSION_IDLE_TIMEOUT_MINUTES:-30}
+      MAX_ACTIVE_SESSIONS: ${MAX_ACTIVE_SESSIONS:-3}
+      FRONTEND_URL: ${APP_ORIGIN:-https://localhost:8443}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-10}
+      MAX_IMPORT_FILE_SIZE_MB: ${MAX_IMPORT_FILE_SIZE_MB:-2}
+      REQUEST_BODY_LIMIT_BYTES: ${REQUEST_BODY_LIMIT_BYTES:-262144}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-2}
+      SECURITY_BLOCK_THRESHOLD: ${SECURITY_BLOCK_THRESHOLD:-5}
+      SECURITY_STRIKE_WINDOW_MINUTES: ${SECURITY_STRIKE_WINDOW_MINUTES:-15}
+      SECURITY_BLOCK_DURATION_MINUTES: ${SECURITY_BLOCK_DURATION_MINUTES:-60}
+      SECURITY_STATE_REQUIRED: "true"
+      SECURITY_STATE_REDIS_URL: redis://:${SECURITY_STATE_REDIS_PASSWORD:?SECURITY_STATE_REDIS_PASSWORD wajib diisi}@security-state:6379/0
+      SECURITY_STATE_KEY_PREFIX: ${SECURITY_STATE_KEY_PREFIX:-sipadi:security}
+      ACCOUNT_LOCK_THRESHOLD: ${ACCOUNT_LOCK_THRESHOLD:-10}
+      ACCOUNT_LOCK_WINDOW_MINUTES: ${ACCOUNT_LOCK_WINDOW_MINUTES:-15}
+      ACCOUNT_LOCK_DURATION_MINUTES: ${ACCOUNT_LOCK_DURATION_MINUTES:-15}
+      PASSWORD_HISTORY_COUNT: ${PASSWORD_HISTORY_COUNT:-5}
+      PRIVILEGED_REAUTH_MAX_AGE_MINUTES: ${PRIVILEGED_REAUTH_MAX_AGE_MINUTES:-15}
+      CRITICAL_APPROVAL_TTL_MINUTES: ${CRITICAL_APPROVAL_TTL_MINUTES:-30}
+      DATA_EGRESS_WINDOW_MINUTES: ${DATA_EGRESS_WINDOW_MINUTES:-15}
+      DATA_EGRESS_ALERT_THRESHOLD: ${DATA_EGRESS_ALERT_THRESHOLD:-20}
+      DATA_EGRESS_BLOCK_THRESHOLD: ${DATA_EGRESS_BLOCK_THRESHOLD:-40}
+      DATA_EGRESS_BLOCK_MINUTES: ${DATA_EGRESS_BLOCK_MINUTES:-60}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
+      CLAMAV_REQUIRED: "true"
+      CLAMAV_TIMEOUT_MS: ${CLAMAV_TIMEOUT_MS:-30000}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?MFA_ENCRYPTION_KEY wajib diisi}
+      MFA_ENCRYPTION_KEY_ID: ${MFA_ENCRYPTION_KEY_ID:-mfa-v1}
+      MFA_PREVIOUS_ENCRYPTION_KEYS: ${MFA_PREVIOUS_ENCRYPTION_KEYS:-}
+      RECOVERY_CODE_PEPPER: ${RECOVERY_CODE_PEPPER:?RECOVERY_CODE_PEPPER wajib diisi}
+      MFA_REQUIRED_ROLES: ${MFA_REQUIRED_ROLES:-Admin,Inspektur}
+      PASSKEY_REQUIRED_ROLES: ${PASSKEY_REQUIRED_ROLES:-Admin,Inspektur}
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:?WEBAUTHN_RP_ID wajib diisi dengan domain aplikasi}
+      WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-SIPADI Inspektorat Kota Depok}
+      WEBAUTHN_ORIGINS: ${APP_ORIGIN:?APP_ORIGIN HTTPS wajib diisi}
+      AUDIT_SIGNING_KEY: ${AUDIT_SIGNING_KEY:?AUDIT_SIGNING_KEY wajib diisi}
+      AUDIT_SIGNING_KEY_ID: ${AUDIT_SIGNING_KEY_ID:-audit-v1}
+      AUDIT_PREVIOUS_SIGNING_KEYS: ${AUDIT_PREVIOUS_SIGNING_KEYS:-}
+      METRICS_ENABLED: "true"
+      METRICS_TOKEN: ${METRICS_TOKEN:?METRICS_TOKEN wajib diisi}
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY wajib diisi}
+      BACKUP_ENCRYPTION_KEY_ID: ${BACKUP_ENCRYPTION_KEY_ID:-backup-v1}
+      BACKUP_PREVIOUS_ENCRYPTION_KEYS: ${BACKUP_PREVIOUS_ENCRYPTION_KEYS:-}
+      ALLOW_PLAINTEXT_BACKUP_RESTORE: "false"
+      MAX_BACKUP_FILE_SIZE_MB: ${MAX_BACKUP_FILE_SIZE_MB:-100}
+      FILE_ENCRYPTION_KEY: ${FILE_ENCRYPTION_KEY:?FILE_ENCRYPTION_KEY wajib diisi}
+      FILE_ENCRYPTION_KEY_ID: ${FILE_ENCRYPTION_KEY_ID:-file-v1}
+      FILE_PREVIOUS_ENCRYPTION_KEYS: ${FILE_PREVIOUS_ENCRYPTION_KEYS:-}
+      FILE_ENCRYPTION_REQUIRED: "true"
+      ALLOW_PLAINTEXT_STORED_FILES: "false"
+      FILE_STORAGE_DRIVER: "s3"
+      FILE_S3_BUCKET: ${FILE_S3_BUCKET:?FILE_S3_BUCKET wajib diisi}
+      FILE_S3_REGION: ${FILE_S3_REGION:-ap-southeast-1}
+      FILE_S3_PREFIX: ${FILE_S3_PREFIX:-sipadi/files}
+      FILE_S3_ENDPOINT: ${FILE_S3_ENDPOINT:-}
+      FILE_S3_FORCE_PATH_STYLE: ${FILE_S3_FORCE_PATH_STYLE:-false}
+      FILE_S3_KMS_KEY_ID: ${FILE_S3_KMS_KEY_ID:?FILE_S3_KMS_KEY_ID wajib diisi}
+      FILE_STORAGE_VERIFY_BUCKET_CONTROLS: "true"
+      UPLOAD_DIR: /tmp/sipadi-uploads
+    expose:
+      - "4000"
+    networks:
+      - application
+      - database
+      - security
+      - egress
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clamav:
+        condition: service_started
+      security-state:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    cpus: 1.5
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  web:
+    <<: *service-security
+    build:
+      context: .
+      dockerfile: deploy/docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: /api
+        NEXT_PUBLIC_SITE_ORIGIN: ${APP_ORIGIN:?APP_ORIGIN HTTPS wajib diisi}
+        NEXT_PUBLIC_AGENCY_NAME: ${AGENCY_NAME:-Inspektorat Kota Depok}
+        NEXT_PUBLIC_SECURITY_CONTACT: ${SECURITY_CONTACT:-}
+        NEXT_PUBLIC_POLICY_APPROVED: ${POLICY_APPROVED:-false}
+        API_PROXY_TARGET: http://api:4000
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_SITE_ORIGIN: ${APP_ORIGIN:?APP_ORIGIN HTTPS wajib diisi}
+      NEXT_PUBLIC_AGENCY_NAME: ${AGENCY_NAME:-Inspektorat Kota Depok}
+      NEXT_PUBLIC_SECURITY_CONTACT: ${SECURITY_CONTACT:-}
+      NEXT_PUBLIC_POLICY_APPROVED: ${POLICY_APPROVED:-false}
+    expose:
+      - "3000"
+    networks:
+      - edge
+      - application
+    depends_on:
+      api:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /app/apps/web/.next/cache:size=128m,uid=1000,gid=1000
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    cpus: 1.0
+
+  waf:
+    <<: *service-security
+    image: owasp/modsecurity-crs:4.25-nginx-lts
+    environment:
+      BACKEND: http://web:3000
+      SERVER_NAME: ${SERVER_NAME:-localhost}
+      PORT: "8080"
+      SSL_PORT: "8443"
+      NGINX_ALWAYS_TLS_REDIRECT: ${TLS_REDIRECT:-off}
+      SERVER_TOKENS: "off"
+      MODSEC_RULE_ENGINE: "on"
+      MODSEC_AUDIT_ENGINE: RelevantOnly
+      MODSEC_AUDIT_LOG: /dev/stdout
+      BLOCKING_PARANOIA: "1"
+      DETECTION_PARANOIA: "2"
+      ANOMALY_INBOUND: "5"
+      ANOMALY_OUTBOUND: "4"
+      REPORTING_LEVEL: "2"
+      ALLOWED_METHODS: GET HEAD POST PUT PATCH DELETE OPTIONS
+      MAX_NUM_ARGS: "256"
+      TOTAL_ARG_LENGTH: "65536"
+      MAX_FILE_SIZE: "52428800"
+      COMBINED_FILE_SIZES: "104857600"
+      MODSEC_REQ_BODY_LIMIT: "115343360"
+      MODSEC_REQ_BODY_NOFILES_LIMIT: "2097152"
+      CLIENT_BODY_TIMEOUT: 15s
+      PROXY_TIMEOUT: 90s
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+      - "${HTTPS_PORT:-8443}:8443"
+    networks:
+      - edge
+    depends_on:
+      web:
+        condition: service_healthy
+    mem_limit: 1g
+    cpus: 1.5
+
+networks:
+  edge:
+  application:
+    internal: true
+  database:
+    internal: true
+  security:
+    internal: true
+  egress:
+
+volumes:
+  sipadi-postgres-data:
+  clamav-signatures:
+  sipadi-security-state:

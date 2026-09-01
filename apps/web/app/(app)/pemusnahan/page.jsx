@@ -336,7 +336,19 @@ export default function PemusnahanPage() {
     });
   }, [destroyedList, search, filterUnit]);
 
-  const isVerifier = user && ["Admin", "Sekretaris", "Sub Bag", "Irban Wilayah"].includes(user.role);
+  const isVerifier = user && [
+    "Admin",
+    "Inspektur",
+    "Sekretaris",
+    "Umpeg",
+    "Sub Bag Perencanaan",
+    "Sub Bag Keuangan",
+    "Irban Wilayah I",
+    "Irban Wilayah II",
+    "Irban Wilayah III",
+    "Irban Wilayah IV",
+    "Irban Wilayah V"
+  ].includes(user.role);
   const isInspektur = user && ["Admin", "Inspektur"].includes(user.role);
 
   return (

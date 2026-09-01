@@ -1,16 +1,19 @@
 import { Router } from "express";
 import { query } from "../config/db.js";
 import { authenticate } from "../middleware/auth.js";
-import { asyncHandler } from "../utils/http.js";
+import { asyncHandler, parseOptionalInt } from "../utils/http.js";
 import { archiveSelectSql, buildArchiveFilters } from "../services/archiveQueries.js";
 
 const router = Router();
+const GLOBAL_ROLES = new Set(["Admin", "Inspektur", "Sekretaris", "Umpeg"]);
 
 router.get(
   "/",
   authenticate,
   asyncHandler(async (req, res) => {
     const filters = buildArchiveFilters({ filters: req.query, user: req.user });
+    const requestedUnitId = parseOptionalInt(req.query.unitId);
+    const isGlobalRole = GLOBAL_ROLES.has(req.user.role);
 
     const totals = await query(
       `SELECT
@@ -39,10 +42,12 @@ router.get(
 
     const unitCounts = await query(
       `SELECT ou.id, ou.name, COUNT(a.id)::int AS total
-       FROM organization_units ou
-       LEFT JOIN archives a ON a.unit_id = ou.id
+       FROM archives a
+       JOIN organization_units ou ON a.unit_id = ou.id
+       ${filters.whereSql}
        GROUP BY ou.id, ou.name
-       ORDER BY total DESC, ou.name ASC`
+       ORDER BY total DESC, ou.name ASC`,
+      filters.values
     );
 
     const recentArchives = await query(
@@ -58,8 +63,10 @@ router.get(
               u.name AS user_name, u.role AS user_role
        FROM audit_logs al
        LEFT JOIN users u ON u.id = al.user_id
+       ${isGlobalRole ? "" : "WHERE al.user_id = $1"}
        ORDER BY al.created_at DESC
-       LIMIT 8`
+       LIMIT 8`,
+      isGlobalRole ? [] : [req.user.id]
     );
 
     // Chart Queries
@@ -142,10 +149,11 @@ router.get(
       `SELECT ou.name AS unit_name, COUNT(a.id)::int AS total
        FROM archives a
        JOIN organization_units ou ON ou.id = a.unit_id
-       WHERE a.status = 'Diarsipkan'
+       ${filters.whereSql ? filters.whereSql + " AND" : "WHERE"} a.status = 'Diarsipkan'
        GROUP BY ou.name
        ORDER BY total DESC
        LIMIT 10`,
+      filters.values
     );
 
     // 9. Arsip terbaru yang diarsipkan
@@ -157,9 +165,10 @@ router.get(
        FROM archives a
        JOIN organization_units ou ON ou.id = a.unit_id
        LEFT JOIN users u ON u.id = a.verified_by
-       WHERE a.status = 'Diarsipkan'
+       ${filters.whereSql ? filters.whereSql + " AND" : "WHERE"} a.status = 'Diarsipkan'
        ORDER BY a.updated_at DESC
        LIMIT 8`,
+      filters.values
     );
 
     // Rekap stat pengarsipan bulan ini
@@ -174,6 +183,213 @@ router.get(
        ${filters.whereSql ? filters.whereSql + " AND" : "WHERE"} a.status = 'Diarsipkan'`,
       filters.values
     );
+
+    const reviewScopeSql = isGlobalRole
+      ? requestedUnitId
+        ? "AND a.unit_id = $1"
+        : ""
+      : "AND a.unit_id = $1";
+    const reviewScopeValues = isGlobalRole
+      ? requestedUnitId
+        ? [requestedUnitId]
+        : []
+      : [req.user.unitId];
+
+    const pendingReviewResult = await query(
+      `SELECT COUNT(*)::int AS total
+       FROM archives a
+       WHERE a.deleted_at IS NULL
+         AND a.status = 'Menunggu Review'
+         ${reviewScopeSql}`,
+      reviewScopeValues
+    );
+
+    const trashFilters = buildArchiveFilters({
+      filters: { trash: "only", unitId: req.query.unitId },
+      user: req.user
+    });
+    const trashCountResult = await query(
+      `SELECT COUNT(*)::int AS total
+       FROM archives a
+       ${trashFilters.whereSql}`,
+      trashFilters.values
+    );
+
+    const pendingLoansResult = await query(
+      `SELECT COUNT(*)::int AS total
+       FROM archive_loans l
+       JOIN archives a ON a.id = l.archive_id
+       WHERE a.deleted_at IS NULL
+         AND l.status = 'Menunggu Persetujuan'
+         ${
+           isGlobalRole
+             ? requestedUnitId
+               ? "AND a.unit_id = $1"
+               : ""
+             : "AND l.user_id = $1"
+         }`,
+      isGlobalRole ? (requestedUnitId ? [requestedUnitId] : []) : [req.user.id]
+    );
+
+    const pendingExtensionsResult = await query(
+      `SELECT COUNT(*)::int AS total
+       FROM archive_loan_extensions e
+       JOIN archive_loans l ON l.id = e.loan_id
+       JOIN archives a ON a.id = l.archive_id
+       WHERE a.deleted_at IS NULL
+         AND e.status = 'Menunggu Persetujuan'
+         ${
+           isGlobalRole
+             ? requestedUnitId
+               ? "AND a.unit_id = $1"
+               : ""
+             : "AND e.requested_by = $1"
+         }`,
+      isGlobalRole ? (requestedUnitId ? [requestedUnitId] : []) : [req.user.id]
+    );
+
+    const overdueLoansResult = await query(
+      `SELECT COUNT(*)::int AS total
+       FROM archive_loans l
+       JOIN archives a ON a.id = l.archive_id
+       WHERE a.deleted_at IS NULL
+         AND l.status = 'Disetujui'
+         AND l.loan_deadline < CURRENT_DATE
+         ${
+           isGlobalRole
+             ? requestedUnitId
+               ? "AND a.unit_id = $1"
+               : ""
+             : "AND l.user_id = $1"
+         }`,
+      isGlobalRole ? (requestedUnitId ? [requestedUnitId] : []) : [req.user.id]
+    );
+
+    const dueDispositionsResult = await query(
+      `SELECT COUNT(*)::int AS total
+       FROM dispositions d
+       JOIN archives a ON a.id = d.archive_id
+       WHERE a.deleted_at IS NULL
+         AND d.status NOT IN ('Selesai', 'Dibatalkan')
+         AND d.deadline <= CURRENT_DATE
+         ${
+           isGlobalRole
+             ? requestedUnitId
+               ? "AND a.unit_id = $1"
+               : ""
+             : "AND (d.to_user_id = $1 OR d.to_unit_id = $2)"
+         }`,
+      isGlobalRole ? (requestedUnitId ? [requestedUnitId] : []) : [req.user.id, req.user.unitId || null]
+    );
+
+    const systemJobResult = await query(
+      `SELECT job_name, last_run_at, last_status, last_message
+       FROM system_jobs
+       WHERE job_name = 'daily_notifications'
+       LIMIT 1`
+    );
+
+    const pendingReview = Number(pendingReviewResult.rows[0]?.total || 0);
+    const pendingLoans = Number(pendingLoansResult.rows[0]?.total || 0);
+    const pendingExtensions = Number(pendingExtensionsResult.rows[0]?.total || 0);
+    const overdueLoans = Number(overdueLoansResult.rows[0]?.total || 0);
+    const dueDispositions = Number(dueDispositionsResult.rows[0]?.total || 0);
+    const trashedArchives = Number(trashCountResult.rows[0]?.total || 0);
+    const retentionDue = Number(totals.rows[0].eligible_disposal || 0) + Number(totals.rows[0].eligible_destruction || 0);
+
+    const todayTasks = isGlobalRole
+      ? [
+          {
+            key: "pending-loan-approvals",
+            label: "Approval peminjaman",
+            count: pendingLoans,
+            href: "/peminjaman",
+            tone: "amber",
+            description: "Permohonan peminjaman yang menunggu persetujuan."
+          },
+          {
+            key: "pending-loan-extensions",
+            label: "Approval perpanjangan",
+            count: pendingExtensions,
+            href: "/peminjaman",
+            tone: "indigo",
+            description: "Permintaan extend deadline yang belum ditinjau."
+          },
+          {
+            key: "overdue-loans",
+            label: "Peminjaman terlambat",
+            count: overdueLoans,
+            href: "/peminjaman",
+            tone: "red",
+            description: "Arsip pinjam yang sudah melewati deadline."
+          },
+          {
+            key: "due-dispositions",
+            label: "Disposisi jatuh tempo",
+            count: dueDispositions,
+            href: "/dispositions",
+            tone: "amber",
+            description: "Disposisi yang perlu tindak lanjut segera."
+          },
+          {
+            key: "retention-due",
+            label: "Retensi perlu tindakan",
+            count: retentionDue,
+            href: "/archives?retentionStatus=active_expired",
+            tone: "blue",
+            description: "Arsip yang siap disusutkan atau dimusnahkan."
+          },
+          {
+            key: "trash-archives",
+            label: "Arsip di sampah",
+            count: trashedArchives,
+            href: "/archives?trash=1",
+            tone: "slate",
+            description: "Arsip yang masih bisa direstore."
+          }
+        ]
+      : [
+          {
+            key: "my-pending-loans",
+            label: "Permohonan saya",
+            count: pendingLoans,
+            href: "/peminjaman",
+            tone: "amber",
+            description: "Permohonan pinjam Anda yang masih menunggu."
+          },
+          {
+            key: "my-pending-extensions",
+            label: "Extend menunggu",
+            count: pendingExtensions,
+            href: "/peminjaman",
+            tone: "indigo",
+            description: "Permintaan perpanjangan Anda yang belum dijawab."
+          },
+          {
+            key: "my-overdue-loans",
+            label: "Pinjaman saya terlambat",
+            count: overdueLoans,
+            href: "/peminjaman",
+            tone: "red",
+            description: "Peminjaman aktif Anda yang sudah lewat deadline."
+          },
+          {
+            key: "my-due-dispositions",
+            label: "Disposisi saya",
+            count: dueDispositions,
+            href: "/dispositions",
+            tone: "amber",
+            description: "Disposisi yang ditujukan ke Anda atau unit Anda."
+          },
+          {
+            key: "my-unit-reviews",
+            label: "Arsip menunggu review",
+            count: pendingReview,
+            href: "/archives?status=Menunggu%20Review",
+            tone: "blue",
+            description: "Arsip unit Anda yang belum selesai diverifikasi."
+          }
+        ];
 
     res.json({
       stats: {
@@ -202,11 +418,18 @@ router.get(
         archivedThisMonth: archivingStatsResult.rows[0].archived_this_month,
         archivedAktif: archivingStatsResult.rows[0].archived_aktif,
         archivedInaktif: archivingStatsResult.rows[0].archived_inaktif,
-        archivedStatis: archivingStatsResult.rows[0].archived_statis
+        archivedStatis: archivingStatsResult.rows[0].archived_statis,
+        trashedArchives
       },
       unitCounts: unitCounts.rows,
       recentArchives: recentArchives.rows,
       activities: activities.rows,
+      todayTasks,
+      roleSummary: {
+        mode: isGlobalRole ? "global" : "unit",
+        role: req.user.role
+      },
+      automation: systemJobResult.rows[0] || null,
       charts: {
         creationByMonth: creationResult.rows,
         disposalByYear: disposalResult.rows,

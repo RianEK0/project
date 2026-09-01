@@ -4,6 +4,7 @@ import { query } from "../config/db.js";
 import { authenticate } from "../middleware/auth.js";
 import { asyncHandler, createHttpError } from "../utils/http.js";
 import { logActivity } from "../services/audit.js";
+import { enforceDataEgressPolicy } from "../services/dataEgressProtection.js";
 import { archiveSelectSql, buildArchiveFilters } from "../services/archiveQueries.js";
 
 const router = Router();
@@ -208,12 +209,17 @@ router.get(
   asyncHandler(async (req, res) => {
     const format = String(req.query.format || "xls").toLowerCase();
     const rows = await reportRows(req);
+    const egressWeight = Math.max(1, Math.ceil(rows.length / 25));
+    const egress = await enforceDataEgressPolicy(req, {
+      operation: "archive_report_export",
+      weight: egressWeight
+    });
 
     await logActivity({
       userId: req.user.id,
       action: "EXPORT",
       entity: "report",
-      metadata: { format, rows: rows.length }
+      metadata: { format, rows: rows.length, egressWeight, projectedEgressCount: egress.projected }
     });
 
     if (["xls", "xlsx", "excel"].includes(format)) {

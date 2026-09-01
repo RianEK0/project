@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import {
@@ -13,18 +14,21 @@ import {
   Menu,
   Network,
   Search,
+  ShieldAlert,
   ShieldCheck,
   Users,
   X,
   FileDown,
   Trash,
-  Bell
+  Bell,
+  Settings
 } from "lucide-react";
 import { useAuth } from "./AuthProvider";
-import { apiFetch } from "../lib/api";
+import { apiFetch, streamNotifications } from "../lib/api";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/notifications", label: "Notifikasi", icon: Bell },
   { href: "/archives", label: "Arsip", icon: Archive },
   { href: "/dispositions", label: "Disposisi", icon: ClipboardList },
   { href: "/organization", label: "Organisasi", icon: Network },
@@ -32,9 +36,53 @@ const navItems = [
   { href: "/penyusutan", label: "Pemeliharaan & Penyusutan", icon: FileDown },
   { href: "/pemusnahan", label: "Pemusnahan", icon: Trash },
   { href: "/peminjaman", label: "Peminjaman", icon: FileText },
-  { href: "/audit-logs", label: "Audit Log", icon: ShieldCheck, roles: ["Admin", "Inspektur", "Sekretaris", "Umpeg"] },
+  { href: "/settings", label: "Pengaturan Akun", icon: Settings },
+  { href: "/system-tools", label: "Backup & Restore", icon: ShieldCheck, roles: ["Admin"] },
+  { href: "/security", label: "Pusat Keamanan", icon: ShieldAlert, roles: ["Admin", "Inspektur"] },
+  { href: "/audit-logs", label: "Audit Log", icon: ShieldCheck, roles: ["Admin", "Inspektur"] },
   { href: "/users", label: "Kelola Pengguna", icon: Users, roles: ["Admin", "Inspektur", "Sekretaris", "Umpeg"] }
 ];
+
+function getNotificationHref(notification) {
+  if (notification.type === "mfa_reset") return "/settings";
+  if (notification.type === "critical_approval") return "/security";
+  const archiveNotificationTypes = new Set([
+    "retensi_habis",
+    "siap_susut",
+    "siap_musnah",
+    "retensi_inaktif_habis",
+    "menunggu_persetujuan_penyusutan",
+    "penyusutan_menunggu_persetujuan_akhir",
+    "penyusutan_selesai",
+    "menunggu_verifikasi_pemusnahan"
+  ]);
+  const loanNotificationTypes = new Set([
+    "request_loan",
+    "loan_approved",
+    "loan_rejected",
+    "loan_returned",
+    "loan_extension_requested",
+    "loan_extension_approved",
+    "loan_extension_rejected",
+    "loan_due_h3",
+    "loan_due_h1",
+    "loan_overdue"
+  ]);
+
+  if (notification.type === "disposition_created") {
+    return "/dispositions";
+  }
+
+  if (loanNotificationTypes.has(notification.type)) {
+    return "/peminjaman";
+  }
+
+  if (archiveNotificationTypes.has(notification.type) && notification.entity_id) {
+    return `/archives?search=${encodeURIComponent(notification.entity_id)}`;
+  }
+
+  return "/dashboard";
+}
 
 export function AppShell({ children }) {
   const pathname = usePathname();
@@ -59,54 +107,54 @@ export function AppShell({ children }) {
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/login");
+    } else if (!loading && (user?.passwordChangeRequired || user?.mfaSetupRequired || user?.passkeySetupRequired) && pathname !== "/settings") {
+      router.replace("/settings");
     }
-  }, [loading, user, router]);
+  }, [loading, user, pathname, router]);
 
   // SSE real-time notifications
   useEffect(() => {
-    if (!user) return;
+    if (!user || user.passwordChangeRequired || user.mfaSetupRequired || user.passkeySetupRequired) return;
 
     // Muat notifikasi awal
     fetchNotifications();
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
-    const token = typeof window !== "undefined" ? localStorage.getItem("sipadi_token") : null;
-    if (!token) return;
-
-    let es;
+    const controller = new AbortController();
     let reconnectTimer;
+    let stopped = false;
 
-    function connect() {
-      es = new EventSource(`${API_URL}/notifications/stream?token=${encodeURIComponent(token)}`);
-
-      es.onmessage = (event) => {
-        try {
-          const notif = JSON.parse(event.data);
-          // Tambah ke state hanya jika punya id (bukan heartbeat)
-          if (notif.id) {
-            setNotifications((prev) => {
-              const exists = prev.some((n) => n.id === notif.id);
-              if (exists) return prev;
-              return [notif, ...prev];
-            });
+    async function connect() {
+      try {
+        await streamNotifications({
+          signal: controller.signal,
+          onMessage(notif) {
+            if (notif.id) {
+              setNotifications((prev) => {
+                const exists = prev.some((n) => n.id === notif.id);
+                if (exists) return prev;
+                return [notif, ...prev];
+              });
+            }
           }
-        } catch {
-          // ignore parse error
+        });
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error("Koneksi notifikasi terputus", error);
         }
-      };
-
-      es.onerror = () => {
-        es.close();
-        // Auto-reconnect setelah 5 detik
-        reconnectTimer = setTimeout(connect, 5000);
-      };
+      } finally {
+        if (!stopped && !controller.signal.aborted) {
+          // Auto-reconnect setelah 5 detik
+          reconnectTimer = setTimeout(connect, 5000);
+        }
+      }
     }
 
     connect();
 
     return () => {
+      stopped = true;
       clearTimeout(reconnectTimer);
-      if (es) es.close();
+      controller.abort();
     };
   }, [user, fetchNotifications]);
 
@@ -136,6 +184,7 @@ export function AppShell({ children }) {
 
   const visibleNav = useMemo(() => {
     if (!user) return [];
+    if (user.passwordChangeRequired || user.mfaSetupRequired || user.passkeySetupRequired) return navItems.filter((item) => item.href === "/settings");
     return navItems.filter((item) => !item.roles || item.roles.includes(user.role));
   }, [user]);
 
@@ -164,14 +213,18 @@ export function AppShell({ children }) {
         <div className="flex h-16 items-center justify-between border-b border-slate-200 px-5">
           <Link href="/dashboard" className="flex items-center gap-2.5">
             <div className="flex gap-1.5 shrink-0">
-              <img
+              <Image
                 src="/logo_depok.png"
                 alt="Logo Kota Depok"
+                width={36}
+                height={36}
                 className="h-9 w-9 rounded object-contain"
               />
-              <img
+              <Image
                 src="/logo-inspektorat.jpg"
                 alt="Logo Inspektorat"
+                width={36}
+                height={36}
                 className="h-9 w-9 rounded object-contain"
               />
             </div>
@@ -218,8 +271,8 @@ export function AppShell({ children }) {
           <button
             type="button"
             className="focus-ring flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            onClick={() => {
-              logout();
+            onClick={async () => {
+              await logout();
               router.replace("/login");
             }}
           >
@@ -306,9 +359,7 @@ export function AppShell({ children }) {
                             onClick={() => {
                               if (!n.is_read) markAsRead(n.id);
                               setNotiOpen(false);
-                              if (n.entity_id) {
-                                router.push(`/archives?search=${encodeURIComponent(n.entity_id)}`);
-                              }
+                              router.push(getNotificationHref(n));
                             }}
                             className={`cursor-pointer px-4 py-2.5 text-left hover:bg-slate-50 transition-colors ${
                               !n.is_read ? "bg-brand-50/50" : ""
@@ -328,6 +379,18 @@ export function AppShell({ children }) {
                           </div>
                         ))
                       )}
+                    </div>
+                    <div className="border-t border-slate-100 px-4 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNotiOpen(false);
+                          router.push("/notifications");
+                        }}
+                        className="w-full rounded-md px-3 py-2 text-left text-xs font-semibold text-brand-700 hover:bg-brand-50"
+                      >
+                        Lihat semua notifikasi
+                      </button>
                     </div>
                   </div>
                 </>
