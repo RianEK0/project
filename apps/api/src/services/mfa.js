@@ -169,7 +169,7 @@ export async function consumeMfaChallenge(token, code) {
     await client.query("BEGIN");
     const result = await client.query(
       `SELECT c.id AS challenge_id, c.expires_at, c.used_at, c.attempt_count,
-              u.id, u.name, u.username, u.email, u.role, u.unit_id, u.is_active,
+              u.id, u.name, u.username, u.email, u.role, u.security_clearance, u.unit_id, u.is_active,
               u.token_version, u.must_change_password, u.mfa_enabled, u.mfa_secret_encrypted, u.mfa_last_used_step,
               EXISTS (SELECT 1 FROM passkey_credentials pc WHERE pc.user_id = u.id) AS passkey_enabled,
               ou.name AS unit_name

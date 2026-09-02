@@ -10,6 +10,7 @@ import { useAuth } from "../../../components/AuthProvider";
 const STEP_UP_LABELS = {
   "backup-export": "Ekspor backup",
   "backup-restore": "Restore backup",
+  "confidential-archive-access": "Akses arsip Rahasia",
   "privileged-user-management": "Pengelolaan akun istimewa",
   "reset-mfa": "Reset MFA",
   "unlock-account": "Buka kunci akun"

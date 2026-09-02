@@ -20,9 +20,16 @@ test("pegawai unit sendiri dapat melihat dan mengedit arsip unitnya", () => {
 });
 
 test("arsip rahasia tidak dapat diunduh meski boleh dilihat", () => {
-  const user = { id: 3, role: "Admin", unitId: 1 };
+  const user = { id: 3, role: "Admin", unitId: 1, securityClearance: 3 };
   const archive = { unit_id: 1, created_by: 3, security_level: "Rahasia" };
 
-  assert.equal(canViewArchive(user, archive, true), true);
-  assert.equal(canDownloadArchive(user, archive, true), false);
+  assert.equal(canViewArchive(user, archive, { recentPasskey: true }), true);
+  assert.equal(canDownloadArchive(user, archive, { recentPasskey: true }), false);
+});
+
+test("admin tanpa clearance tidak dapat membaca arsip Rahasia", () => {
+  const user = { id: 4, role: "Admin", unitId: 1, securityClearance: 1 };
+  const archive = { unit_id: 1, created_by: 4, security_level: "Rahasia" };
+
+  assert.equal(canViewArchive(user, archive, { recentPasskey: true }), false);
 });

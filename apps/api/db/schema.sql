@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
   failed_login_count INTEGER NOT NULL DEFAULT 0,
   last_failed_login_at TIMESTAMPTZ,
   login_locked_until TIMESTAMPTZ,
+  security_clearance SMALLINT NOT NULL DEFAULT 1 CHECK (security_clearance BETWEEN 1 AND 3),
   role VARCHAR(40) NOT NULL CHECK (role IN ('Admin', 'Inspektur', 'Sekretaris', 'Umpeg', 'Sub Bag Perencanaan', 'Sub Bag Keuangan', 'Irban Wilayah I', 'Irban Wilayah II', 'Irban Wilayah III', 'Irban Wilayah IV', 'Irban Wilayah V')),
   unit_id INTEGER REFERENCES organization_units(id) ON DELETE SET NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -39,6 +40,9 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL
 ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_failed_login_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS login_locked_until TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS security_clearance SMALLINT NOT NULL DEFAULT 1;
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_security_clearance_check;
+ALTER TABLE users ADD CONSTRAINT users_security_clearance_check CHECK (security_clearance BETWEEN 1 AND 3);
 
 CREATE TABLE IF NOT EXISTS password_history (
   id BIGSERIAL PRIMARY KEY,
@@ -556,6 +560,48 @@ ALTER TABLE archive_loans
 
 CREATE INDEX IF NOT EXISTS idx_archive_loans_user_id ON archive_loans(user_id);
 CREATE INDEX IF NOT EXISTS idx_archive_loans_archive_id ON archive_loans(archive_id);
+
+CREATE TABLE IF NOT EXISTS archive_access_grants (
+  id BIGSERIAL PRIMARY KEY,
+  archive_id INTEGER NOT NULL REFERENCES archives(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  granted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  access_type VARCHAR(20) NOT NULL CHECK (access_type IN ('view', 'download', 'edit')),
+  reason VARCHAR(500) NOT NULL,
+  valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  valid_until TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  revoked_at TIMESTAMPTZ,
+  CHECK (valid_until > valid_from),
+  CHECK (granted_by IS NULL OR granted_by <> user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_archive_access_grants_subject
+  ON archive_access_grants(user_id, archive_id, access_type, valid_until)
+  WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_archive_access_grants_archive
+  ON archive_access_grants(archive_id, valid_until)
+  WHERE revoked_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS archive_access_requests (
+  id BIGSERIAL PRIMARY KEY,
+  archive_id INTEGER NOT NULL REFERENCES archives(id) ON DELETE CASCADE,
+  requested_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reason VARCHAR(500) NOT NULL,
+  requested_access VARCHAR(20) NOT NULL CHECK (requested_access IN ('view', 'download', 'edit')),
+  status VARCHAR(20) NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'approved', 'rejected', 'expired', 'revoked')),
+  approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  approved_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (approved_by IS NULL OR approved_by <> requested_by)
+);
+
+CREATE INDEX IF NOT EXISTS idx_archive_access_requests_requester
+  ON archive_access_requests(requested_by, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_archive_access_requests_archive
+  ON archive_access_requests(archive_id, status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS system_jobs (
   job_name VARCHAR(80) PRIMARY KEY,

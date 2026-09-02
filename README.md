@@ -119,10 +119,10 @@ Akun login utama:
 
 ```text
 admin@sipadi.test
-SipadiDemo2026
+nilai SEED_DEFAULT_PASSWORD
 ```
 
-Semua user seed memakai password `SipadiDemo2026` atau nilai `SEED_DEFAULT_PASSWORD` bila environment variable tersebut diisi. Kredensial seed hanya untuk pengembangan dan wajib diganti sebelum deployment.
+Seed bersifat destructive dan hanya untuk development. Jalankan hanya dengan `ALLOW_DESTRUCTIVE_SEED=true` dan isi `SEED_DEFAULT_PASSWORD` secara eksplisit; tidak ada fallback password hardcoded. Semua user hasil seed dipaksa mengganti password awal sebelum memakai fitur SIPADI.
 
 ## Cara Menjalankan Lokal
 

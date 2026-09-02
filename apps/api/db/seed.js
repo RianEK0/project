@@ -1,9 +1,27 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
 import pg from "pg";
-import { appendAuditLog } from "../src/services/audit.js";
+import { passwordPolicyIssues } from "../src/services/passwordPolicy.js";
 
 const { Pool } = pg;
+
+if (process.env.NODE_ENV === "production") {
+  throw new Error("Database seed dilarang dijalankan di production.");
+}
+
+if (process.env.ALLOW_DESTRUCTIVE_SEED !== "true") {
+  throw new Error("Seed ini menghapus data demo. Set ALLOW_DESTRUCTIVE_SEED=true untuk menjalankannya secara eksplisit.");
+}
+
+const demoPassword = String(process.env.SEED_DEFAULT_PASSWORD || "");
+if (!demoPassword) {
+  throw new Error("SEED_DEFAULT_PASSWORD wajib diisi. Jangan memakai default password hardcoded.");
+}
+
+const passwordIssues = passwordPolicyIssues(demoPassword);
+if (passwordIssues.length) {
+  throw new Error(`SEED_DEFAULT_PASSWORD belum memenuhi policy: ${passwordIssues.join(", ")}`);
+}
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || "postgresql://sipadi:sipadi123@localhost:5432/sipadi"
@@ -88,6 +106,7 @@ function daysAgo(days) {
 }
 
 async function main() {
+  const { appendAuditLog } = await import("../src/services/audit.js");
   const client = await pool.connect();
 
   try {
@@ -105,13 +124,12 @@ async function main() {
       );
     }
 
-    const demoPassword = process.env.SEED_DEFAULT_PASSWORD || "SipadiDemo2026";
     const passwordHash = await bcrypt.hash(demoPassword, 12);
     for (const user of users) {
       await client.query(
-        `INSERT INTO users (name, username, email, password_hash, role, unit_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [user[0], user[1], user[2], passwordHash, user[3], user[4]]
+        `INSERT INTO users (name, username, email, password_hash, role, unit_id, security_clearance, must_change_password)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)`,
+        [user[0], user[1], user[2], passwordHash, user[3], user[4], 1]
       );
     }
 
@@ -274,7 +292,7 @@ async function main() {
 
     await client.query("COMMIT");
     console.log("Seed selesai: 10 user, 11 unit organisasi, 30 arsip, 10 disposisi, 20 aktivitas.");
-    console.log(`Login dummy: admin@sipadi.test / ${demoPassword}`);
+    console.log("Login dummy: admin@sipadi.test / nilai SEED_DEFAULT_PASSWORD. Semua user wajib mengganti password awal.");
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

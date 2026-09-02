@@ -2,7 +2,7 @@ name: SIPADI Security
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, sipadi]
   pull_request:
   schedule:
     - cron: "17 19 * * 0"
@@ -31,6 +31,8 @@ jobs:
         run: npm run security:static
       - name: Validate hardened production Compose
         run: docker compose --env-file deploy/security.env.example -f docker-compose.security.yml config --quiet
+      - name: Validate signed-release Compose override
+        run: docker compose --env-file deploy/security.env.example -f docker-compose.security.yml -f deploy/docker-compose.signed-release.override.yml.example config --quiet
 
   codeql:
     runs-on: ubuntu-latest

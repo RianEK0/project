@@ -14,6 +14,7 @@ import { revokeUserSessions, rotateSessionCookie } from "./session.js";
 export const PASSKEY_STEP_UP_ACTIONS = Object.freeze([
   "backup-export",
   "backup-restore",
+  "confidential-archive-access",
   "privileged-user-management",
   "reset-mfa",
   "unlock-account",
@@ -111,7 +112,7 @@ export async function verifyPasskeyRegistration({ userId, token, response, name 
   try {
     await client.query("BEGIN");
     const ceremonyResult = await client.query(
-      `SELECT wc.*, u.name AS user_name, u.username, u.email, u.role, u.unit_id,
+      `SELECT wc.*, u.name AS user_name, u.username, u.email, u.role, u.security_clearance, u.unit_id,
               u.is_active, u.token_version, u.must_change_password, ou.name AS unit_name
        FROM webauthn_challenges wc
        JOIN users u ON u.id = wc.user_id
@@ -177,6 +178,7 @@ export async function verifyPasskeyRegistration({ userId, token, response, name 
         username: ceremony.username,
         email: ceremony.email,
         role: ceremony.role,
+        security_clearance: ceremony.security_clearance,
         unit_id: ceremony.unit_id,
         unit_name: ceremony.unit_name,
         is_active: ceremony.is_active,
@@ -236,7 +238,7 @@ export async function verifyPasskeyAuthentication({ mfaChallengeToken, token, re
       `SELECT wc.id AS ceremony_id, wc.challenge, wc.expires_at AS ceremony_expires_at,
               wc.used_at AS ceremony_used_at, c.id AS mfa_challenge_id, c.expires_at,
               c.used_at, c.attempt_count, u.id, u.name, u.username, u.email, u.role,
-              u.unit_id, u.is_active, u.token_version, u.must_change_password, u.mfa_enabled, ou.name AS unit_name
+              u.security_clearance, u.unit_id, u.is_active, u.token_version, u.must_change_password, u.mfa_enabled, ou.name AS unit_name
        FROM webauthn_challenges wc
        JOIN mfa_challenges c ON c.id = wc.mfa_challenge_id
        JOIN users u ON u.id = wc.user_id
@@ -350,7 +352,7 @@ export async function verifyPasskeyStepUp({
     const result = await client.query(
       `SELECT wc.id AS ceremony_id, wc.challenge, wc.expires_at AS ceremony_expires_at,
               wc.used_at AS ceremony_used_at, wc.action, wc.session_id,
-              u.id, u.name, u.username, u.email, u.role, u.unit_id, u.is_active,
+              u.id, u.name, u.username, u.email, u.role, u.security_clearance, u.unit_id, u.is_active,
               u.token_version, u.must_change_password, u.mfa_enabled, ou.name AS unit_name,
               us.auth_methods AS session_auth_methods
        FROM webauthn_challenges wc

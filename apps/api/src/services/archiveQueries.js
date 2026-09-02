@@ -7,6 +7,15 @@ export const DISPOSITION_STATUSES = ["Dikirim", "Dibaca", "Diproses", "Selesai",
 export const FILE_TYPES = ["PDF", "DOC", "DOCX", "XLS", "XLSX", "JPG", "PNG", "TIFF"];
 export const SECURITY_LEVELS = ["Biasa", "Terbatas", "Rahasia"];
 
+function userSecurityClearance(user) {
+  const parsed = Number(user?.securityClearance ?? user?.security_clearance ?? 1);
+  return Number.isInteger(parsed) ? Math.min(Math.max(parsed, 1), 3) : 1;
+}
+
+function securityLevelRankSql(alias) {
+  return `CASE ${alias}.security_level WHEN 'Rahasia' THEN 3 WHEN 'Terbatas' THEN 2 ELSE 1 END`;
+}
+
 export function buildArchiveFilters({ filters, user, alias = "a", startIndex = 1 }) {
   const values = [];
   const where = [];
@@ -19,17 +28,37 @@ export function buildArchiveFilters({ filters, user, alias = "a", startIndex = 1
     where.push(`${alias}.deleted_at IS NULL`);
   }
 
-  if (user && !canAccessAllArchives(user)) {
-    values.push(user.unitId || null, user.id);
-    where.push(
-      `(${alias}.unit_id = $${index} OR ${alias}.created_by = $${index + 1} OR EXISTS (
+  if (user) {
+    const userUnitIndex = index + 1;
+    const userIdIndex = index + 2;
+    values.push(userSecurityClearance(user), user.unitId ?? user.unit_id ?? null, user.id ?? null);
+    where.push(`${securityLevelRankSql(alias)} <= $${index}`);
+    const scope = [
+      `${alias}.unit_id = $${userUnitIndex}`,
+      `${alias}.created_by = $${userIdIndex}`,
+      `EXISTS (
         SELECT 1 FROM archive_loans scope_loan
         WHERE scope_loan.archive_id = ${alias}.id
-          AND scope_loan.user_id = $${index + 1}
+          AND scope_loan.user_id = $${userIdIndex}
           AND scope_loan.status = 'Disetujui'
-      ))`
+      )`,
+      `EXISTS (
+        SELECT 1 FROM archive_access_grants scope_grant
+        WHERE scope_grant.archive_id = ${alias}.id
+          AND scope_grant.user_id = $${userIdIndex}
+          AND scope_grant.revoked_at IS NULL
+          AND scope_grant.valid_from <= NOW()
+          AND scope_grant.valid_until > NOW()
+          AND scope_grant.access_type IN ('view', 'download', 'edit')
+      )`
+    ];
+    if (canAccessAllArchives(user)) {
+      scope.push(`${securityLevelRankSql(alias)} = 1`);
+    }
+    where.push(
+      `(${scope.join(" OR ")})`
     );
-    index += 2;
+    index += 3;
   }
 
   const requestedUnitId = parseOptionalInt(filters.unitId || filters.unit_id);

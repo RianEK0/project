@@ -1,5 +1,7 @@
-// Role-role yang memiliki akses global (lintas semua unit)
-const GLOBAL_ARCHIVE_ROLES = new Set(["Admin", "Inspektur", "Sekretaris", "Umpeg"]);
+import { evaluateAccess, SECURITY_CLEARANCE, securityLevelRank } from "./policyEngine.js";
+
+// Role-role yang memiliki akses global untuk metadata dan arsip Biasa.
+export const GLOBAL_ARCHIVE_ROLES = new Set(["Admin", "Inspektur", "Sekretaris", "Umpeg"]);
 
 // Role-role yang hanya bisa edit arsip unit sendiri (pegawai)
 const UNIT_EDIT_ROLES = new Set([
@@ -12,43 +14,42 @@ const UNIT_EDIT_ROLES = new Set([
   "Irban Wilayah V"
 ]);
 
-export function canViewArchive(user, archive, hasApprovedLoan = false) {
-  if (!user || !archive) return false;
-  if (GLOBAL_ARCHIVE_ROLES.has(user.role)) return true;
-  if (Number(user.unitId) === Number(archive.unit_id)) return true;
-  if (archive.created_by === user.id) return true;
-  return hasApprovedLoan;
+function contextFrom(value) {
+  if (typeof value === "boolean") return { approvedLoan: value };
+  return value || {};
+}
+
+export function archivePolicyDecision(user, archive, action, context = {}) {
+  return evaluateAccess({
+    user,
+    resource: archive,
+    action,
+    context
+  });
+}
+
+export function canViewArchive(user, archive, context = false) {
+  return archivePolicyDecision(user, archive, "archive:view", contextFrom(context)).allowed;
 }
 
 export function canAccessAllArchives(user) {
   return GLOBAL_ARCHIVE_ROLES.has(user?.role);
 }
 
-export function canDownloadArchive(user, archive, hasApprovedLoan = false) {
-  // Dokumen Rahasia tidak boleh diunduh, hanya view-only
-  if (archive?.security_level === "Rahasia") return false;
-  return canViewArchive(user, archive, hasApprovedLoan);
+export function canDownloadArchive(user, archive, context = false) {
+  return archivePolicyDecision(user, archive, "archive:download", contextFrom(context)).allowed;
 }
 
-export function canEditArchive(user, archive) {
-  if (!user || !archive) return false;
-  if (GLOBAL_ARCHIVE_ROLES.has(user.role)) return true;
-  return UNIT_EDIT_ROLES.has(user.role) && Number(user?.unitId) === Number(archive?.unit_id);
+export function canEditArchive(user, archive, context = {}) {
+  return archivePolicyDecision(user, archive, "archive:update", contextFrom(context)).allowed;
 }
 
-export function canDeleteArchive(user, archive) {
-  return canEditArchive(user, archive);
+export function canDeleteArchive(user, archive, context = {}) {
+  return archivePolicyDecision(user, archive, "archive:delete", contextFrom(context)).allowed;
 }
 
-export function canUpdateArchiveStatus(user, archive) {
-  if (!user || !archive) return false;
-  // Semua role global bisa update status
-  if (GLOBAL_ARCHIVE_ROLES.has(user.role)) return true;
-  // Pegawai hanya bisa update status arsip unitnya sendiri
-  if (UNIT_EDIT_ROLES.has(user.role)) {
-    return Number(user.unitId) === Number(archive.unit_id);
-  }
-  return false;
+export function canUpdateArchiveStatus(user, archive, context = {}) {
+  return archivePolicyDecision(user, archive, "archive:verify", contextFrom(context)).allowed;
 }
 
 export function canCreateDisposition(user) {
@@ -57,4 +58,13 @@ export function canCreateDisposition(user) {
 
 export function canChooseArchiveUnit(user) {
   return GLOBAL_ARCHIVE_ROLES.has(user?.role);
+}
+
+export function userCanEditUnitArchive(user, archive) {
+  return UNIT_EDIT_ROLES.has(user?.role) && Number(user?.unitId) === Number(archive?.unit_id);
+}
+
+export function hasArchiveClearance(user, archive) {
+  return Number(user?.securityClearance ?? user?.security_clearance ?? SECURITY_CLEARANCE.Biasa) >=
+    securityLevelRank(archive?.security_level ?? archive?.securityLevel);
 }

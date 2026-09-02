@@ -22,6 +22,21 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Require version tag release
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            echo "Signed container release must run from a protected v* tag." >&2
+            exit 1
+          fi
+          case "${GITHUB_REF_NAME}" in
+            v*) ;;
+            *)
+              echo "Signed container release tag must start with v." >&2
+              exit 1
+              ;;
+          esac
+
       - name: Normalize registry image names
         id: names
         shell: bash

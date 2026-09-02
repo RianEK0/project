@@ -550,7 +550,7 @@ router.post(
 router.get(
   "/:id",
   authenticate,
-  requireArchivePermission(canViewArchive, "Anda tidak dapat melihat arsip ini"),
+  requireArchivePermission(canViewArchive, "Anda tidak dapat melihat arsip ini", { action: "archive:view" }),
   asyncHandler(async (req, res) => {
     const archive = req.archive;
     const archiveResult = await query(
@@ -687,7 +687,7 @@ router.get(
 router.put(
   "/:id",
   authenticate,
-  requireArchivePermission(canEditArchive, "Hanya Admin atau divisi pemilik arsip yang dapat mengubah data ini"),
+  requireArchivePermission(canEditArchive, "Hanya Admin atau divisi pemilik arsip yang dapat mengubah data ini", { action: "archive:update", accessType: "edit" }),
   archiveUpload.single("file"),
   validateArchiveFiles,
   scanUploadedFiles,
@@ -782,7 +782,7 @@ router.put(
 router.delete(
   "/:id",
   authenticate,
-  requireArchivePermission(canDeleteArchive, "Hanya Admin atau divisi pemilik arsip yang dapat menghapus arsip ini"),
+  requireArchivePermission(canDeleteArchive, "Hanya Admin atau divisi pemilik arsip yang dapat menghapus arsip ini", { action: "archive:delete", accessType: "edit" }),
   asyncHandler(async (req, res) => {
     const existing = req.archive;
     ensureArchiveActive(existing);
@@ -811,7 +811,7 @@ router.delete(
 router.post(
   "/:id/restore",
   authenticate,
-  requireArchivePermission(canDeleteArchive, "Hanya Admin atau divisi pemilik arsip yang dapat merestore arsip ini"),
+  requireArchivePermission(canDeleteArchive, "Hanya Admin atau divisi pemilik arsip yang dapat merestore arsip ini", { action: "archive:delete", accessType: "edit" }),
   asyncHandler(async (req, res) => {
     const existing = req.archive;
     if (!existing.deleted_at) {
@@ -843,7 +843,7 @@ router.post(
 router.post(
   "/:id/move-location",
   authenticate,
-  requireArchivePermission(canEditArchive, "Hanya Admin atau divisi pemilik arsip yang dapat memindahkan lokasi arsip ini"),
+  requireArchivePermission(canEditArchive, "Hanya Admin atau divisi pemilik arsip yang dapat memindahkan lokasi arsip ini", { action: "archive:update", accessType: "edit" }),
   asyncHandler(async (req, res) => {
     const existing = req.archive;
     ensureArchiveActive(existing);
@@ -916,7 +916,7 @@ router.post(
 router.post(
   "/:id/stock-opname",
   authenticate,
-  requireArchivePermission(canEditArchive, "Hanya Admin atau divisi pemilik arsip yang dapat mengisi stock opname arsip ini"),
+  requireArchivePermission(canEditArchive, "Hanya Admin atau divisi pemilik arsip yang dapat mengisi stock opname arsip ini", { action: "archive:update", accessType: "edit" }),
   asyncHandler(async (req, res) => {
     const existing = req.archive;
     ensureArchiveActive(existing);
@@ -1040,7 +1040,7 @@ router.post(
 router.post(
   "/:id/comments",
   authenticate,
-  requireArchivePermission(canViewArchive, "Anda tidak dapat melihat arsip ini"),
+  requireArchivePermission(canViewArchive, "Anda tidak dapat melihat arsip ini", { action: "archive:view" }),
   validateBody(commentSchema),
   asyncHandler(async (req, res) => {
     ensureArchiveActive(req.archive);
@@ -1065,7 +1065,7 @@ router.post(
 router.post(
   "/:id/verify",
   authenticate,
-  requireArchivePermission(canUpdateArchiveStatus, "Anda tidak dapat mengubah status arsip ini"),
+  requireArchivePermission(canUpdateArchiveStatus, "Anda tidak dapat mengubah status arsip ini", { action: "archive:verify", accessType: "edit" }),
   validateBody(verifySchema),
   asyncHandler(async (req, res) => {
     ensureArchiveActive(req.archive);
@@ -1104,7 +1104,7 @@ router.post(
 router.get(
   "/:id/preview",
   authenticate,
-  requireArchivePermission(canViewArchive, "Anda tidak dapat melihat arsip ini"),
+  requireArchivePermission(canViewArchive, "Anda tidak dapat melihat arsip ini", { action: "archive:preview" }),
   asyncHandler(async (req, res) => {
     const archive = req.archive;
     ensureArchiveActive(archive);
@@ -1158,7 +1158,7 @@ router.get(
 router.get(
   "/:id/download",
   authenticate,
-  requireArchivePermission(canDownloadArchive, "Anda tidak dapat mengunduh arsip ini"),
+  requireArchivePermission(canDownloadArchive, "Anda tidak dapat mengunduh arsip ini", { action: "archive:download", accessType: "download" }),
   asyncHandler(async (req, res) => {
     const archive = req.archive;
     ensureArchiveActive(archive);

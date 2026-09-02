@@ -123,6 +123,8 @@ const fileStorageVerifyBucketControls = booleanFromEnv(
   process.env.FILE_STORAGE_VERIFY_BUCKET_CONTROLS,
   nodeEnv === "production"
 );
+const abacEnabled = booleanFromEnv(process.env.ABAC_ENABLED, true);
+const confidentialPasskeyRequired = booleanFromEnv(process.env.CONFIDENTIAL_PASSKEY_REQUIRED, true);
 
 if (nodeEnv === "production") {
   let productionDatabasePassword = "";
@@ -213,6 +215,12 @@ if (nodeEnv === "production") {
   if (!fileStorageVerifyBucketControls) {
     throw new Error("FILE_STORAGE_VERIFY_BUCKET_CONTROLS wajib aktif di production");
   }
+  if (!abacEnabled) {
+    throw new Error("ABAC_ENABLED wajib aktif di production");
+  }
+  if (!confidentialPasskeyRequired) {
+    throw new Error("CONFIDENTIAL_PASSKEY_REQUIRED wajib aktif di production");
+  }
 
   if (!webauthnOrigins.length || webauthnOrigins.some((origin) => !origin.startsWith("https://"))) {
     throw new Error("WEBAUTHN_ORIGINS produksi wajib menggunakan origin HTTPS yang eksplisit");
@@ -277,6 +285,10 @@ export const env = {
   dataEgressAlertThreshold: boundedNumberFromEnv(process.env.DATA_EGRESS_ALERT_THRESHOLD, 20, 5, 500),
   dataEgressBlockThreshold: boundedNumberFromEnv(process.env.DATA_EGRESS_BLOCK_THRESHOLD, 40, 10, 1000),
   dataEgressBlockMinutes: boundedNumberFromEnv(process.env.DATA_EGRESS_BLOCK_MINUTES, 60, 5, 1440),
+  abacEnabled,
+  confidentialPasskeyRequired,
+  abacRiskStepUpThreshold: boundedNumberFromEnv(process.env.ABAC_RISK_STEP_UP_THRESHOLD, 60, 1, 1000),
+  abacRiskBlockThreshold: boundedNumberFromEnv(process.env.ABAC_RISK_BLOCK_THRESHOLD, 80, 1, 1000),
   clamavHost: (process.env.CLAMAV_HOST || "").trim(),
   clamavPort: boundedNumberFromEnv(process.env.CLAMAV_PORT, 3310, 1, 65535),
   clamavTimeoutMs: boundedNumberFromEnv(process.env.CLAMAV_TIMEOUT_MS, 30000, 1000, 120000),

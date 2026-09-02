@@ -43,7 +43,7 @@ export const authenticate = asyncHandler(async (req, res, next) => {
   }
 
   const result = await query(
-    `SELECT u.id, u.name, u.username, u.email, u.role, u.unit_id, u.is_active, u.token_version,
+    `SELECT u.id, u.name, u.username, u.email, u.role, u.security_clearance, u.unit_id, u.is_active, u.token_version,
             u.must_change_password,
             u.mfa_enabled,
             EXISTS (SELECT 1 FROM passkey_credentials pc WHERE pc.user_id = u.id) AS passkey_enabled,
@@ -118,6 +118,7 @@ export const authenticate = asyncHandler(async (req, res, next) => {
     username: user.username,
     email: user.email,
     role: user.role,
+    securityClearance: Number(user.security_clearance || 1),
     unitId: user.unit_id,
     unitName: user.unit_name,
     mfaEnabled: Boolean(user.mfa_enabled),

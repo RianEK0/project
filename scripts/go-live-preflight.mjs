@@ -25,6 +25,12 @@ const requireValue = (name, predicate, message) => {
   if (!predicate(value(name))) failures.push(`${name}: ${message}`);
 };
 const strongSecret = (secret) => secret.length >= 32 && !/(ganti|change|example|password|secret-?produksi)/i.test(secret);
+const immutableImageDigest = (image) => {
+  const digest = image.match(/@sha256:([a-f0-9]{64})$/i)?.[1] || "";
+  return /^[a-z0-9][a-z0-9._:/-]+@sha256:[a-f0-9]{64}$/i.test(image) &&
+    !/(:latest|:edge|example|contoh|ganti|organisasi)/i.test(image) &&
+    !/^0+$/.test(digest);
+};
 const aes256Key = (secret) => {
   if (/^[a-f0-9]{64}$/i.test(secret)) return true;
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(secret)) return false;
@@ -56,6 +62,12 @@ requireValue("FILE_STORAGE_DRIVER", (item) => item === "s3", "production wajib m
 requireValue("FILE_S3_BUCKET", (item) => item && !/(example|contoh|ganti)/i.test(item), "bucket dokumen final wajib diisi");
 requireValue("FILE_S3_KMS_KEY_ID", (item) => item.length >= 20 && !/(example|contoh|ganti)/i.test(item), "kunci KMS final wajib diisi");
 requireValue("FILE_STORAGE_VERIFY_BUCKET_CONTROLS", (item) => item === "true", "verifikasi versioning, public-access block, dan KMS wajib aktif");
+requireValue("ABAC_ENABLED", (item) => item === "true", "ABAC wajib aktif untuk production");
+requireValue("CONFIDENTIAL_PASSKEY_REQUIRED", (item) => item === "true", "arsip Rahasia wajib membutuhkan recent passkey");
+requireValue("ABAC_RISK_STEP_UP_THRESHOLD", (item) => Number.isInteger(Number(item)) && Number(item) >= 1, "threshold step-up risiko ABAC wajib angka positif");
+requireValue("ABAC_RISK_BLOCK_THRESHOLD", (item) => Number.isInteger(Number(item)) && Number(item) >= Number(value("ABAC_RISK_STEP_UP_THRESHOLD")), "threshold block risiko ABAC wajib >= step-up");
+requireValue("API_IMAGE", immutableImageDigest, "wajib image API final dalam format registry/repo@sha256:digest, bukan tag atau placeholder");
+requireValue("WEB_IMAGE", immutableImageDigest, "wajib image web final dalam format registry/repo@sha256:digest, bukan tag atau placeholder");
 if (value("DATABASE_URL")) {
   requireValue("DATABASE_URL", (item) => {
     try {

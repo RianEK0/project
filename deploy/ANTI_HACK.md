@@ -38,7 +38,13 @@ Kontrol tambahan yang sudah disertakan di repo:
 2. Siapkan bucket dokumen privat dan kunci KMS sesuai `deploy/object-storage/README.md`. Startup production memverifikasi versioning, Public Access Block, serta default SSE-KMS dan gagal tertutup bila kontrol tidak sesuai.
 3. Siapkan sertifikat TLS resmi. Image WAF membuat sertifikat self-signed untuk commissioning, tetapi production wajib menaruh `server.crt` dan `server.key` di `deploy/certs/`, lalu memakai `deploy/docker-compose.tls.override.yml.example` sebagai override Compose.
 4. Jalankan `npm run security:preflight`. Deployment dihentikan sampai seluruh pemeriksaan environment dan bukti VAPT/WAF/SIEM/EDR/restore/signature lulus; hasil ini tidak menggantikan checklist dan tanda tangan pada `docs/government/GO_LIVE_APPROVAL.md`.
-5. Untuk production, gunakan image berdasarkan digest dari workflow `Signed Container Release` dan verifikasi dengan `deploy/supply-chain/verify-release-images.sh`. Perintah build lokal berikut hanya untuk commissioning terkontrol:
+5. Untuk production, isi `API_IMAGE` dan `WEB_IMAGE` dari artifact workflow `Signed Container Release`, lalu verifikasi dengan `deploy/supply-chain/verify-release-images.sh`. Jalankan production dengan override signed-release agar host tidak membangun ulang source dan tidak memakai tag bergerak:
+
+   ```bash
+   docker compose -f docker-compose.security.yml -f deploy/docker-compose.tls.override.yml.example -f deploy/docker-compose.signed-release.override.yml.example up -d
+   ```
+
+   Perintah build lokal berikut hanya untuk commissioning terkontrol:
 
    ```bash
    docker compose -f docker-compose.security.yml -f deploy/docker-compose.tls.override.yml.example up -d --build

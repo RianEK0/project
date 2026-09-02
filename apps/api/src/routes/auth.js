@@ -115,6 +115,7 @@ function publicUser(user) {
     username: user.username,
     email: user.email,
     role: user.role,
+    securityClearance: Number(user.security_clearance ?? user.securityClearance ?? 1),
     unitId: user.unit_id || user.unitId,
     unitName: user.unit_name || user.unitName,
     isActive: user.is_active,
@@ -135,7 +136,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const { identifier, password } = req.body;
     const result = await query(
-      `SELECT u.id, u.name, u.username, u.email, u.password_hash, u.role, u.unit_id, u.is_active,
+      `SELECT u.id, u.name, u.username, u.email, u.password_hash, u.role, u.security_clearance, u.unit_id, u.is_active,
               u.must_change_password, u.failed_login_count, u.login_locked_until,
               u.token_version, u.mfa_enabled,
               EXISTS (SELECT 1 FROM passkey_credentials pc WHERE pc.user_id = u.id) AS passkey_enabled,
@@ -742,12 +743,12 @@ router.put(
              email = $3,
              updated_at = NOW()
          WHERE id = $4
-         RETURNING id, name, username, email, role, unit_id, is_active`,
+         RETURNING id, name, username, email, role, security_clearance, unit_id, is_active`,
         [req.body.name, req.body.username, req.body.email, req.user.id]
       );
 
       const userResult = await query(
-        `SELECT u.id, u.name, u.username, u.email, u.role, u.unit_id, u.is_active,
+        `SELECT u.id, u.name, u.username, u.email, u.role, u.security_clearance, u.unit_id, u.is_active,
                 u.mfa_enabled, u.must_change_password,
                 EXISTS (SELECT 1 FROM passkey_credentials pc WHERE pc.user_id = u.id) AS passkey_enabled,
                 ou.name AS unit_name

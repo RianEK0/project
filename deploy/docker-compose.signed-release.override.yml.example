@@ -1,0 +1,10 @@
+services:
+  api:
+    image: ${API_IMAGE:?API_IMAGE wajib diisi dari artifact Signed Container Release}
+    build: null
+    pull_policy: always
+
+  web:
+    image: ${WEB_IMAGE:?WEB_IMAGE wajib diisi dari artifact Signed Container Release}
+    build: null
+    pull_policy: always

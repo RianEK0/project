@@ -34,6 +34,8 @@ const optionalUnitId = z.preprocess(
   z.coerce.number().int().positive().optional()
 );
 
+const securityClearanceSchema = z.coerce.number().int().min(1).max(3);
+
 const createSchema = z.object({
   name: z.string().trim().min(3).max(120),
   username: z.string().trim().min(3).max(60),
@@ -41,6 +43,7 @@ const createSchema = z.object({
   password: securePasswordSchema,
   role: roleSchema,
   unitId: optionalUnitId,
+  securityClearance: securityClearanceSchema.optional().default(1),
   isActive: z.boolean().optional().default(true)
 });
 
@@ -50,6 +53,7 @@ const updateSchema = z.object({
   email: z.string().trim().email().max(160).optional(),
   role: roleSchema.optional(),
   unitId: optionalUnitId,
+  securityClearance: securityClearanceSchema.optional(),
   isActive: z.boolean().optional()
 });
 
@@ -92,10 +96,25 @@ function enforcePrivilegedStepUp(req, ...roles) {
   }
 }
 
+function enforceSensitiveAccountStepUp(req, existingClearance = 1, requestedClearance = 1) {
+  if (Math.max(Number(existingClearance || 1), Number(requestedClearance || 1)) > 1 &&
+      !hasRecentPasskey(req.user, Math.floor(Date.now() / 1000), "privileged-user-management")) {
+    throw createHttpError(
+      403,
+      "Konfirmasi passkey diperlukan untuk mengelola security clearance",
+      {
+        code: "PASSKEY_STEP_UP_REQUIRED",
+        action: "privileged-user-management",
+        maxAgeMinutes: Math.ceil(env.privilegedReauthMaxAgeSeconds / 60)
+      }
+    );
+  }
+}
+
 function userSelectSql() {
   return `
     SELECT u.id, u.name, u.username, u.email, u.role, u.unit_id, u.is_active,
-           u.mfa_enabled, u.mfa_enabled_at, u.must_change_password,
+           u.security_clearance, u.mfa_enabled, u.mfa_enabled_at, u.must_change_password,
            u.failed_login_count, u.login_locked_until,
            EXISTS (SELECT 1 FROM passkey_credentials pc WHERE pc.user_id = u.id) AS passkey_enabled,
            u.created_at, u.updated_at, ou.name AS unit_name
@@ -151,8 +170,9 @@ router.post(
   asyncHandler(async (req, res) => {
     ensureUserManagementScope(req.user, null, req.body.role);
     enforcePrivilegedStepUp(req, req.body.role);
+    enforceSensitiveAccountStepUp(req, 1, req.body.securityClearance);
     let approval = null;
-    if (PRIVILEGED_ROLES.has(req.body.role)) {
+    if (PRIVILEGED_ROLES.has(req.body.role) || Number(req.body.securityClearance) > 1) {
       approval = await requireCriticalApproval({
         action: "PRIVILEGED_USER_CREATE",
         resourceKey: `new-user:${req.body.email.toLowerCase()}`,
@@ -171,9 +191,9 @@ router.post(
         await consumeCriticalApproval(client, approval, { requesterId: req.user.id, requestId: req.requestId });
       }
       const result = await client.query(
-        `INSERT INTO users (name, username, email, password_hash, role, unit_id, is_active, must_change_password)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
-         RETURNING id, name, username, email, role, unit_id, is_active, created_at, updated_at`,
+        `INSERT INTO users (name, username, email, password_hash, role, unit_id, security_clearance, is_active, must_change_password)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)
+         RETURNING id, name, username, email, role, unit_id, security_clearance, is_active, created_at, updated_at`,
         [
           req.body.name,
           req.body.username,
@@ -181,6 +201,7 @@ router.post(
           passwordHash,
           req.body.role,
           req.body.unitId || null,
+          req.body.securityClearance,
           req.body.isActive
         ]
       );
@@ -190,7 +211,12 @@ router.post(
         action: "CREATE",
         entity: "user",
         entityId: result.rows[0].id,
-        metadata: { email: req.body.email, role: req.body.role, approvalId: approval?.id || null }
+        metadata: {
+          email: req.body.email,
+          role: req.body.role,
+          securityClearance: req.body.securityClearance,
+          approvalId: approval?.id || null
+        }
       });
       await client.query("COMMIT");
       return res.status(201).json({ data: result.rows[0] });
@@ -215,10 +241,21 @@ router.put(
       const existing = existingResult.rows[0];
       if (!existing) throw createHttpError(404, "User tidak ditemukan");
       ensureUserManagementScope(req.user, existing, req.body.role);
-      const changesSecurityScope = req.body.role !== undefined || req.body.unitId !== undefined || req.body.isActive !== undefined;
-      if (changesSecurityScope) enforcePrivilegedStepUp(req, existing.role, req.body.role);
+      const nextSecurityClearance = req.body.securityClearance ?? existing.security_clearance;
+      const changesSecurityScope = req.body.role !== undefined ||
+        req.body.unitId !== undefined ||
+        req.body.isActive !== undefined ||
+        req.body.securityClearance !== undefined;
+      if (changesSecurityScope) {
+        enforcePrivilegedStepUp(req, existing.role, req.body.role);
+        enforceSensitiveAccountStepUp(req, existing.security_clearance, nextSecurityClearance);
+      }
       let approval = null;
-      if (changesSecurityScope && [existing.role, req.body.role].some((role) => PRIVILEGED_ROLES.has(role))) {
+      if (changesSecurityScope && (
+        [existing.role, req.body.role].some((role) => PRIVILEGED_ROLES.has(role)) ||
+        Number(existing.security_clearance || 1) > 1 ||
+        Number(nextSecurityClearance || 1) > 1
+      )) {
         approval = await requireCriticalApproval({
           action: "PRIVILEGED_USER_UPDATE",
           resourceKey: `user:${existing.id}`,
@@ -226,6 +263,7 @@ router.put(
             targetUserId: existing.id,
             role: req.body.role ?? existing.role,
             unitId: req.body.unitId ?? existing.unit_id,
+            securityClearance: nextSecurityClearance,
             isActive: req.body.isActive ?? existing.is_active
           },
           requester: req.user,
@@ -235,7 +273,8 @@ router.put(
         await consumeCriticalApproval(client, approval, { requesterId: req.user.id, requestId: req.requestId });
       }
       const revokesSessions = Boolean(
-        req.body.role !== undefined || req.body.unitId !== undefined || req.body.isActive !== undefined
+        req.body.role !== undefined || req.body.unitId !== undefined ||
+          req.body.securityClearance !== undefined || req.body.isActive !== undefined
       );
 
       const result = await client.query(
@@ -245,17 +284,19 @@ router.put(
              email = COALESCE($3, email),
              role = COALESCE($4, role),
              unit_id = COALESCE($5, unit_id),
-             is_active = COALESCE($6, is_active),
-             token_version = token_version + CASE WHEN $7 THEN 1 ELSE 0 END,
+             security_clearance = COALESCE($6, security_clearance),
+             is_active = COALESCE($7, is_active),
+             token_version = token_version + CASE WHEN $8 THEN 1 ELSE 0 END,
              updated_at = NOW()
-         WHERE id = $8
-         RETURNING id, name, username, email, role, unit_id, is_active, created_at, updated_at`,
+         WHERE id = $9
+         RETURNING id, name, username, email, role, unit_id, security_clearance, is_active, created_at, updated_at`,
         [
           req.body.name || null,
           req.body.username || null,
           req.body.email || null,
           req.body.role || null,
           req.body.unitId || null,
+          req.body.securityClearance ?? null,
           req.body.isActive,
           revokesSessions,
           req.params.id
@@ -267,7 +308,10 @@ router.put(
         action: "UPDATE",
         entity: "user",
         entityId: Number(req.params.id),
-        metadata: { approvalId: approval?.id || null }
+        metadata: {
+          approvalId: approval?.id || null,
+          securityClearanceChanged: req.body.securityClearance !== undefined
+        }
       });
       await client.query("COMMIT");
       return res.json({ data: result.rows[0] });

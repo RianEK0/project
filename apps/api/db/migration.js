@@ -164,6 +164,9 @@ async function runMigration() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_pending_expires_at TIMESTAMPTZ;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_last_used_step BIGINT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled_at TIMESTAMPTZ;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS security_clearance SMALLINT NOT NULL DEFAULT 1;
+      ALTER TABLE users DROP CONSTRAINT IF EXISTS users_security_clearance_check;
+      ALTER TABLE users ADD CONSTRAINT users_security_clearance_check CHECK (security_clearance BETWEEN 1 AND 3);
       ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
       ALTER TABLE users ADD CONSTRAINT users_role_check
         CHECK (role IN ('Admin', 'Inspektur', 'Sekretaris', 'Umpeg', 'Sub Bag Perencanaan', 'Sub Bag Keuangan', 'Irban Wilayah I', 'Irban Wilayah II', 'Irban Wilayah III', 'Irban Wilayah IV', 'Irban Wilayah V'));
@@ -452,6 +455,49 @@ async function runMigration() {
         FROM archive_loan_histories h
         WHERE h.loan_id = l.id
       );
+    `);
+
+    console.log("Membuat tabel grant dan request akses arsip sensitif...");
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS archive_access_grants (
+        id BIGSERIAL PRIMARY KEY,
+        archive_id INTEGER NOT NULL REFERENCES archives(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        granted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        access_type VARCHAR(20) NOT NULL CHECK (access_type IN ('view', 'download', 'edit')),
+        reason VARCHAR(500) NOT NULL,
+        valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        valid_until TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        revoked_at TIMESTAMPTZ,
+        CHECK (valid_until > valid_from),
+        CHECK (granted_by IS NULL OR granted_by <> user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_archive_access_grants_subject
+        ON archive_access_grants(user_id, archive_id, access_type, valid_until)
+        WHERE revoked_at IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_archive_access_grants_archive
+        ON archive_access_grants(archive_id, valid_until)
+        WHERE revoked_at IS NULL;
+
+      CREATE TABLE IF NOT EXISTS archive_access_requests (
+        id BIGSERIAL PRIMARY KEY,
+        archive_id INTEGER NOT NULL REFERENCES archives(id) ON DELETE CASCADE,
+        requested_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        reason VARCHAR(500) NOT NULL,
+        requested_access VARCHAR(20) NOT NULL CHECK (requested_access IN ('view', 'download', 'edit')),
+        status VARCHAR(20) NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('pending', 'approved', 'rejected', 'expired', 'revoked')),
+        approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        approved_at TIMESTAMPTZ,
+        expires_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CHECK (approved_by IS NULL OR approved_by <> requested_by)
+      );
+      CREATE INDEX IF NOT EXISTS idx_archive_access_requests_requester
+        ON archive_access_requests(requested_by, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_archive_access_requests_archive
+        ON archive_access_requests(archive_id, status, created_at DESC);
     `);
 
     console.log("Membuat tabel status job sistem...");

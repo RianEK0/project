@@ -25,7 +25,7 @@ WEB_IMAGE=ghcr.io/organisasi/repo/web@sha256:DIGEST \
 sh deploy/supply-chain/verify-release-images.sh
 ```
 
-Deployment wajib mengambil nilai image dari artifact `sipadi-container-release-*`, bukan mengetik ulang tag. Jangan deploy tag bergerak. Jika verifikasi Cosign gagal, hentikan rilis; jangan memakai `--insecure-ignore-tlog`, melewati pemeriksaan identitas workflow, atau membangun ulang image pada host production.
+Deployment wajib mengambil nilai `API_IMAGE` dan `WEB_IMAGE` dari artifact `sipadi-container-release-*`, bukan mengetik ulang tag. Jalankan production dengan `deploy/docker-compose.signed-release.override.yml.example` agar Compose menarik digest immutable dan mengabaikan build lokal. Jika verifikasi Cosign gagal, hentikan rilis; jangan memakai `--insecure-ignore-tlog`, melewati pemeriksaan identitas workflow, atau membangun ulang image pada host production.
 
 Catat commit, tag, checksum, identitas dua penyetuju, hasil CI, hasil VAPT, nomor perubahan, waktu deployment, dan rencana rollback pada berita acara rilis. Artifact workflow bukan arsip permanen; salin evidence bundle ke penyimpanan WORM/immutable milik instansi sesuai retensi yang disahkan.
 
